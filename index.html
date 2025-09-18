@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mitobot MMX+</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .carousel-track { display: flex; transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        .carousel-item { flex: 0 0 100%; }
+        .btn-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+        .loader { border: 4px solid rgba(0,0,0,0.1); border-top-color: #2dd4bf; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .form-container, .results-container { box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05); }
+        .suggestion-btn, .clarification-btn { transition: all 0.2s ease-in-out; }
+        .suggestion-btn:hover, .clarification-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+        .share-btn { transition: background-color 0.2s; }
+        .copied { background-color: #16a34a !important; color: white !important; }
+        .has-tooltip { position: relative; cursor: help; }
+        .tooltip { visibility: hidden; opacity: 0; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background-color: #1f2937; color: #fff; text-align: center; border-radius: 6px; padding: 8px 12px; z-index: 10; width: 220px; font-size: 0.8rem; font-weight: 500; transition: opacity 0.2s; white-space: normal; }
+        .tooltip::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #1f2937 transparent transparent transparent; }
+        .has-tooltip:hover .tooltip { visibility: visible; opacity: 1; }
+        .filter-btn { transition: all 0.2s; }
+        .filter-btn.active { background-color: #00A99D; color: white; }
+        .related-myth-btn { transition: all 0.2s; border: 1px solid #e2e8f0; }
+        .related-myth-btn:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
+        .mic-btn.is-listening { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(45, 212, 191, 0); } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 to-gray-100">
+
+    <main class="w-full max-w-md mx-auto">
+        <header class="text-center mb-8 flex flex-col items-center">
+             <div class="mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="h-20 w-20">
+                    <defs>
+                        <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#00A99D"/>
+                            <stop offset="100%" stop-color="#26C6DA"/>
+                        </linearGradient>
+                    </defs>
+                    <g stroke="url(#logoGradient)" stroke-width="7" stroke-linecap="round">
+                        <path d="M30 10 C 70 30, 70 70, 30 90" fill="none"/>
+                        <path d="M70 10 C 30 30, 30 70, 70 90" fill="none"/>
+                        <line x1="32" y1="20" x2="68" y2="20"/>
+                        <line x1="42" y1="35" x2="58" y2="35"/>
+                        <line x1="50" y1="50" x2="50" y2="50"/>
+                        <line x1="42" y1="65" x2="58" y2="65"/>
+                        <line x1="32" y1="80" x2="68" y2="80"/>
+                    </g>
+                </svg>
+             </div>
+            <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent mb-2">
+                Mitobot MMX
+            </h1>
+            <h2 class="text-2xl font-bold text-slate-700 tracking-tight">Desmitificador Científico</h2>
+            <p class="text-slate-500 mt-3 max-w-xs">Obtén respuestas claras y directas basadas en la evidencia científica actual.</p>
+        </header>
+
+        <div id="main-content">
+            <form id="myth-form" class="form-container bg-white p-6 rounded-2xl mb-8 border border-slate-200/80">
+                <label for="myth-input" class="block text-sm font-bold mb-2 bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent">¿Es verdad que...?</label>
+                <div class="relative">
+                    <textarea id="myth-input" rows="3" class="w-full p-3 pr-12 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-shadow duration-200 placeholder-slate-400" placeholder="...la creatina daña los riñones?"></textarea>
+                    <button id="mic-btn" type="button" class="mic-btn absolute top-1/2 right-3 -translate-y-1/2 p-2 rounded-full text-slate-400 hover:bg-slate-100 hover:text-cyan-500 transition-all" title="Verificar por voz">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                           <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <div id="suggestions" class="mt-4 text-sm text-slate-600">
+                    <p class="font-medium mb-2">O prueba con un clic:</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿El ayuno intermitente adelgaza?</button>
+                        <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿Los alimentos orgánicos son más nutritivos?</button>
+                        <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿Necesitamos 8 vasos de agua al día?</button>
+                    </div>
+                </div>
+                
+                <button type="submit" class="mt-6 w-full bg-gradient-to-r from-teal-400 to-cyan-500 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 transition-all duration-300 transform hover:-translate-y-0.5">
+                    Verificar Evidencia
+                </button>
+            </form>
+
+            <div id="filter-container" class="mb-4"></div>
+        </div>
+
+        <!-- Mejora 1: Vista de Clarificación (inicialmente oculta) -->
+        <div id="clarification-view" class="hidden form-container bg-white p-6 rounded-2xl mb-8 border border-slate-200/80 fade-in">
+            <p id="clarification-question" class="text-center font-medium text-slate-700 mb-4"></p>
+            <div id="clarification-options" class="flex flex-col gap-3"></div>
+        </div>
+
+
+        <section id="results-section" class="relative">
+            <div id="loader" class="hidden absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center rounded-2xl z-20">
+                <div class="loader"></div>
+            </div>
+            <div id="carousel-container" class="results-container overflow-hidden rounded-2xl bg-white relative border border-slate-200/80">
+                 <div id="carousel-track" class="carousel-track" onclick="handleCardClick(event)"></div>
+            </div>
+            <div id="initial-state" class="results-container text-center p-10 bg-white rounded-2xl border border-slate-200/80">
+                <svg class="mx-auto h-12 w-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-slate-800">Esperando tu consulta</h3>
+                <p class="mt-1 text-sm text-slate-500">Los resultados de la verificación aparecerán aquí.</p>
+            </div>
+            <div id="navigation-controls" class="hidden justify-between items-center mt-4 px-2">
+                <button id="prev-btn" class="btn-arrow p-2 rounded-full bg-white shadow-md hover:bg-slate-100 transition-all disabled:opacity-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <div class="flex items-center gap-4">
+                    <div id="card-counter" class="text-sm font-semibold text-slate-600 tracking-wider"></div>
+                    <button id="clear-history-btn" title="Limpiar historial" class="text-slate-400 hover:text-red-500 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
+                <button id="next-btn" class="btn-arrow p-2 rounded-full bg-white shadow-md hover:bg-slate-100 transition-all disabled:opacity-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- ELEMENTOS DEL DOM ---
+        const mythForm = document.getElementById('myth-form');
+        const mythInput = document.getElementById('myth-input');
+        const carouselTrack = document.getElementById('carousel-track');
+        const carouselContainer = document.getElementById('carousel-container');
+        const initialState = document.getElementById('initial-state');
+        const navigationControls = document.getElementById('navigation-controls');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const cardCounter = document.getElementById('card-counter');
+        const loader = document.getElementById('loader');
+        const suggestionsContainer = document.getElementById('suggestions');
+        const clearHistoryBtn = document.getElementById('clear-history-btn');
+        const filterContainer = document.getElementById('filter-container');
+        const mainContent = document.getElementById('main-content');
+        const clarificationView = document.getElementById('clarification-view');
+        const clarificationQuestion = document.getElementById('clarification-question');
+        const clarificationOptions = document.getElementById('clarification-options');
+        const micBtn = document.getElementById('mic-btn');
+
+        // --- ESTADO DE LA APLICACIÓN ---
+        let allCards = [];
+        let filteredCards = [];
+        let currentIndex = 0;
+        let currentFilter = 'todos';
+        
+        // --- RECONOCIMIENTO DE VOZ ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'es-ES';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            
+            recognition.onstart = () => micBtn.classList.add('is-listening');
+            recognition.onend = () => micBtn.classList.remove('is-listening');
+            recognition.onerror = (event) => {
+                console.error('Error en reconocimiento de voz:', event.error);
+                micBtn.classList.remove('is-listening');
+            };
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                mythInput.value = transcript;
+                handleFormSubmit(transcript);
+            };
+        } else {
+            micBtn.style.display = 'none';
+        }
+
+        // --- DATOS Y CONFIGURACIÓN ---
+        const mythOfTheDay = {
+            myth: "El 'Mito del Día': Beber agua con limón en ayunas detoxifica el cuerpo.", isTrue: false,
+            explanation: "El cuerpo humano tiene sistemas de detoxificación muy eficientes (hígado, riñones). El agua con limón hidrata, pero no tiene propiedades 'detox' especiales más allá de las del agua.",
+            evidenceLevel: "Baja", sources: ["Revisiones de Fisiología", "Estudios de Nutrición"], category: "Nutrición",
+            relatedMyths: ["¿El vinagre de manzana ayuda a perder peso?", "¿Beber café deshidrata?"]
+        };
+
+        const evidenceDefinitions = {
+            "Alta": "Basado en el consenso de múltiples estudios de la máxima calidad (metaanálisis, revisiones sistemáticas).",
+            "Moderada": "Respaldado por algunos ensayos controlados o estudios observacionales consistentes.",
+            "Baja": "Basado en estudios pequeños, contradictorios, anecdóticos o en mecanismos teóricos."
+        };
+
+        // --- LÓGICA PRINCIPAL ---
+        document.addEventListener('DOMContentLoaded', loadHistory);
+
+        async function fetchApiResponse(userQuery) {
+            loader.classList.remove('hidden');
+            const BACKEND_URL = 'https://mmx-desmitificador-app.netlify.app/.netlify/functions/verifyMyth';
+            try {
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userQuery: userQuery })
+                });
+                if (!response.ok) {
+                     const errorText = await response.text();
+                     throw new Error(`Error en el servidor: ${response.status} - ${errorText}`);
+                }
+                const result = await response.json();
+                if (result.candidates && result.candidates[0]?.content?.parts[0]) {
+                    return JSON.parse(result.candidates[0].content.parts[0].text);
+                } else { throw new Error("Respuesta de la API inválida o vacía."); }
+            } catch (error) {
+                console.error('Error al contactar el backend:', error);
+                return { responseType: 'mythCard', data: {
+                    myth: "Error al procesar la solicitud", isTrue: false, explanation: `Hubo un problema al procesar la solicitud. Detalles: ${error.message}`,
+                    evidenceLevel: "Baja", sources: [], category: "Error", relatedMyths: []
+                }};
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        async function handleFormSubmit(query) {
+             if (!query) return;
+            const responseData = await fetchApiResponse(query);
+            
+            if (responseData.responseType === 'clarification') {
+                renderClarificationView(responseData.data);
+            } else { // Es un mythCard
+                const newCardData = responseData.data;
+                if(newCardData) {
+                    allCards.push(newCardData);
+                    currentFilter = 'todos';
+                    applyFilter();
+                    currentIndex = filteredCards.length - 1;
+                    saveHistory();
+                    renderAll();
+                }
+            }
+            mythInput.value = '';
+        }
+
+        // --- GESTIÓN DE EVENTOS ---
+        mythForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleFormSubmit(mythInput.value.trim());
+        });
+        
+        micBtn.addEventListener('click', () => {
+            if (recognition) {
+                recognition.start();
+            }
+        });
+        
+        suggestionsContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('suggestion-btn')) {
+                const query = e.target.textContent;
+                mythInput.value = query;
+                handleFormSubmit(query);
+            }
+        });
+        
+        clarificationOptions.addEventListener('click', (e) => {
+            if (e.target.classList.contains('clarification-btn')) {
+                const query = e.target.dataset.query;
+                handleFormSubmit(query);
+                hideClarificationView();
+            }
+        });
+
+        function handleCardClick(event) {
+            const target = event.target.closest('.related-myth-btn');
+            if (target) {
+                const myth = target.dataset.myth;
+                handleFormSubmit(myth);
+            }
+        }
+
+        clearHistoryBtn.addEventListener('click', () => {
+            if (confirm('¿Estás seguro de que quieres borrar todo el historial?')) {
+                localStorage.removeItem('mythHistory');
+                allCards = [];
+                applyFilter();
+                renderAll();
+            }
+        });
+
+        filterContainer.addEventListener('click', (e) => {
+            if (e.target.classList.contains('filter-btn')) {
+                currentFilter = e.target.dataset.filter;
+                applyFilter();
+                currentIndex = Math.max(0, filteredCards.length - 1);
+                renderAll();
+            }
+        });
+        
+        prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateCarouselPosition(); } });
+        nextBtn.addEventListener('click', () => { if (currentIndex < filteredCards.length - 1) { currentIndex++; updateCarouselPosition(); } });
+        window.addEventListener('resize', () => { if (filteredCards.length > 0) updateCarouselPosition(); });
+
+        // --- HISTORIAL Y FILTROS ---
+        function saveHistory() {
+            localStorage.setItem('mythHistory', JSON.stringify(allCards));
+        }
+
+        function loadHistory() {
+            const savedCards = localStorage.getItem('mythHistory');
+            if (savedCards && savedCards.length > 2) {
+                allCards = JSON.parse(savedCards);
+            } else {
+                allCards = [mythOfTheDay];
+            }
+            applyFilter();
+            currentIndex = Math.max(0, filteredCards.length - 1);
+            renderAll();
+        }
+
+        function applyFilter() {
+            if (currentFilter === 'todos') {
+                filteredCards = [...allCards];
+            } else {
+                filteredCards = allCards.filter(card => card.category === currentFilter);
+            }
+        }
+        
+        function renderAll() {
+            renderFilterButtons();
+            renderCarousel();
+        }
+
+        // --- RENDERIZADO Y UI ---
+        
+        function renderClarificationView(data) {
+            mainContent.classList.add('hidden');
+            clarificationQuestion.textContent = data.clarificationQuestion;
+            clarificationOptions.innerHTML = data.clarificationOptions.map(opt => 
+                `<button class="clarification-btn w-full text-left bg-slate-100 text-slate-700 px-4 py-3 rounded-lg hover:bg-slate-200" data-query="${opt}">${opt}</button>`
+            ).join('');
+            clarificationView.classList.remove('hidden');
+        }
+
+        function hideClarificationView() {
+            mainContent.classList.remove('hidden');
+            clarificationView.classList.add('hidden');
+        }
+
+        function renderFilterButtons() {
+            if (allCards.length === 0) {
+                filterContainer.innerHTML = '';
+                return;
+            }
+            const categories = ['todos', ...new Set(allCards.map(card => card.category).filter(Boolean))];
+            filterContainer.innerHTML = `
+                <div class="flex flex-wrap items-center justify-center gap-2">
+                    ${categories.map(cat => `
+                        <button class="filter-btn text-sm font-semibold px-4 py-2 rounded-full ${currentFilter === cat ? 'active' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-filter="${cat}">
+                            ${cat === 'todos' ? 'Todo' : cat}
+                        </button>
+                    `).join('')}
+                </div>`;
+        }
+        
+        function renderCarousel() {
+            if (filteredCards.length === 0) {
+                carouselContainer.classList.add('hidden');
+                initialState.classList.remove('hidden');
+                navigationControls.classList.add('hidden');
+                if (currentFilter !== 'todos') {
+                    initialState.querySelector('h3').textContent = `No hay mitos en la categoría "${currentFilter}"`;
+                    initialState.querySelector('p').textContent = 'Prueba a seleccionar otra categoría o a verificar un nuevo mito.';
+                } else {
+                    initialState.querySelector('h3').textContent = 'Historial vacío';
+                    initialState.querySelector('p').textContent = 'Los resultados de tus verificaciones aparecerán aquí.';
+                }
+                return;
+            }
+
+            carouselContainer.classList.remove('hidden');
+            initialState.classList.add('hidden');
+            navigationControls.classList.remove('hidden');
+            navigationControls.classList.add('flex');
+            carouselTrack.innerHTML = filteredCards.map((card, index) => createCardHTML(card, index)).join('');
+            const newCardElement = carouselTrack.lastElementChild;
+            if (newCardElement) { newCardElement.classList.add('fade-in'); }
+            updateCarouselPosition();
+        }
+
+        function createEvidenciometroHTML(level) {
+            const bars = [
+                { color: '#fca5a5', active: level === 'Baja' || level === 'Moderada' || level === 'Alta' },
+                { color: '#fcd34d', active: level === 'Moderada' || level === 'Alta' },
+                { color: '#6ee7b7', active: level === 'Alta' }
+            ];
+            return `
+                <div class="flex items-center gap-2 has-tooltip">
+                    <div class="flex items-end gap-1.5 h-8">
+                        ${bars.map((bar, i) => `<div class="w-3 rounded-full" style="height: ${50 + i*25}%; background-color: ${bar.active ? bar.color : '#e2e8f0'};"></div>`).join('')}
+                    </div>
+                    <span class="text-sm font-semibold text-slate-700">${level}</span>
+                    <div class="tooltip">${evidenceDefinitions[level] || ''}</div>
+                </div>
+            `;
+        }
+        
+        function createCardHTML(cardData, index) {
+            const verdictText = cardData.isTrue ? "VERDADERO" : "FALSO";
+            const verdictColorClass = cardData.isTrue ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100";
+            const verdictIcon = cardData.isTrue ? '...' : '...'; // SVG code omitted for brevity
+            const sourcesHTML = cardData.sources?.length > 0 ? `...` : '';
+            const relatedMythsHTML = cardData.relatedMyths?.length > 0 ? `...` : '';
+
+            return `<div class="carousel-item w-full p-6 md:p-8">
+                        <div class="card h-full flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start">
+                                    <div class="flex-1 pr-4">
+                                        <p class="text-sm font-semibold text-slate-500 mb-2">Afirmación:</p>
+                                        <h2 class="text-xl font-bold text-slate-800 mb-6 leading-tight">"${cardData.myth}"</h2>
+                                    </div>
+                                    <button class="share-btn flex-shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full p-2" onclick="shareResult(${index})">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
+                                    </button>
+                                </div>
+                                <div class="flex items-center text-base font-bold py-2 px-3 rounded-lg ${verdictColorClass} mb-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="${cardData.isTrue ? 'M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z' : 'M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z'}" clip-rule="evenodd" /></svg>
+                                    <span class="tracking-wider">${verdictText}</span>
+                                </div>
+                                <p class="text-slate-600 leading-relaxed text-base">${cardData.explanation}</p>
+                            </div>
+                            <div class="mt-8 pt-4 border-t border-slate-200 space-y-4">
+                                <div>
+                                    <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Evidenciómetro:</p>
+                                    ${createEvidenciometroHTML(cardData.evidenceLevel || 'Baja')}
+                                </div>
+                                ${cardData.sources?.length > 0 ? `<div class="mt-4"><p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Basado en:</p><ul class="text-sm text-slate-600 list-disc list-inside space-y-1">${cardData.sources.map(s => `<li>${s}</li>`).join('')}</ul></div>` : ''}
+                                ${cardData.relatedMyths?.length > 0 ? `<div class="mt-4"><p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Mitos Relacionados:</p><div class="flex flex-col gap-2">${cardData.relatedMyths.map(m => `<button class="related-myth-btn text-sm text-left text-slate-700 p-2 rounded-md" data-myth="${m}">- ${m}</button>`).join('')}</div></div>` : ''}
+                            </div>
+                        </div>
+                    </div>`;
+        }
+        
+        function shareResult(index) {
+            const cardData = filteredCards[index];
+            const verdictText = cardData.isTrue ? 'VERDADERO' : 'FALSO';
+            const textToCopy = `He verificado un mito con Mitobot MMX:\n\n🤔 Mito: "${cardData.myth}"\n✅ Veredicto: ${verdictText}\n\nCompruébalo tú mismo en: ${window.location.href}`;
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const shareButton = document.querySelectorAll('.share-btn')[index];
+                const originalIcon = shareButton.innerHTML;
+                shareButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>`;
+                shareButton.classList.add('copied');
+
+                setTimeout(() => {
+                    shareButton.innerHTML = originalIcon;
+                    shareButton.classList.remove('copied');
+                }, 2000);
+            }).catch(err => { console.error('Error al copiar al portapapeles:', err); });
+        }
+
+        function updateCarouselPosition() {
+            const cardWidth = carouselContainer.offsetWidth;
+            carouselTrack.style.transform = `translateX(-${currentIndex * cardWidth}px)`;
+            updateNavigation();
+        }
+
+        function updateNavigation() {
+            prevBtn.disabled = currentIndex === 0;
+            nextBtn.disabled = currentIndex >= filteredCards.length - 1;
+            cardCounter.textContent = `${currentIndex + 1} / ${filteredCards.length}`;
+            clearHistoryBtn.style.visibility = allCards.length > 0 ? 'visible' : 'hidden';
+        }
+        
+    </script>
+</body>
+</html>
+
