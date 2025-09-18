@@ -1,20 +1,26 @@
 // Esta es tu función serverless, que actúa como un backend seguro.
 
 exports.handler = async function (event, context) {
+  // --- Manejo de CORS ---
+  // Define las cabeceras que permitirán la comunicación desde cualquier origen.
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
+  // El navegador envía una petición "preflight" OPTIONS antes de la petición POST real.
+  // Debemos responder a esta petición con las cabeceras CORS para dar permiso.
   if (event.httpMethod === 'OPTIONS') {
     return {
-      statusCode: 204,
+      statusCode: 204, // No Content
       headers: corsHeaders,
       body: ''
     };
   }
+  // --- Fin del Manejo de CORS ---
 
+  // Medida de seguridad: Solo permitir peticiones POST.
   if (event.httpMethod !== 'POST') {
     return { 
         statusCode: 405, 
