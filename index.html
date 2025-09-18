@@ -93,6 +93,12 @@
             <div id="filter-container" class="mb-4"></div>
         </div>
 
+        <div id="clarification-view" class="hidden form-container bg-white p-6 rounded-2xl mb-8 border border-slate-200/80 fade-in">
+            <p id="clarification-question" class="text-center font-medium text-slate-700 mb-4"></p>
+            <div id="clarification-options" class="flex flex-col gap-3"></div>
+        </div>
+
+
         <section id="results-section" class="relative">
             <div id="loader" class="hidden absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center rounded-2xl z-20">
                 <div class="loader"></div>
@@ -140,6 +146,10 @@
         const suggestionsContainer = document.getElementById('suggestions');
         const clearHistoryBtn = document.getElementById('clear-history-btn');
         const filterContainer = document.getElementById('filter-container');
+        const mainContent = document.getElementById('main-content');
+        const clarificationView = document.getElementById('clarification-view');
+        const clarificationQuestion = document.getElementById('clarification-question');
+        const clarificationOptions = document.getElementById('clarification-options');
         const micBtn = document.getElementById('mic-btn');
 
         // --- ESTADO DE LA APLICACIÓN ---
@@ -170,7 +180,7 @@
                 handleFormSubmit(transcript);
             };
         } else {
-            micBtn.style.display = 'none';
+            if(micBtn) micBtn.style.display = 'none';
         }
 
         // --- DATOS Y CONFIGURACIÓN ---
@@ -203,60 +213,60 @@
                      throw new Error(`Error en el servidor: ${response.status} - ${errorText}`);
                 }
                 const result = await response.json();
-                
-                // El backend ahora siempre devuelve un objeto con 'candidates'
                 if (result.candidates && result.candidates[0]?.content?.parts[0]) {
-                    const jsonText = result.candidates[0].content.parts[0].text;
-                    try { 
-                        // La respuesta de la IA ya no tiene 'responseType', es directamente la tarjeta.
-                        return JSON.parse(jsonText); 
-                    } catch (e) {
-                        console.error("Error al parsear el JSON de la API:", jsonText);
-                        throw new Error("La respuesta de la API no es un JSON válido.");
+                    const parsedResult = JSON.parse(result.candidates[0].content.parts[0].text);
+                     if (parsedResult.responseType && parsedResult.data) {
+                        return parsedResult;
                     }
-                } else { 
-                    console.error("Respuesta de la API inválida:", result);
-                    throw new Error("Respuesta de la API inválida o vacía."); 
+                     // Fallback for older model responses that might not have responseType
+                    return { responseType: 'mythCard', data: parsedResult };
                 }
+                 throw new Error("Respuesta de la API inválida o vacía.");
+
             } catch (error) {
                 console.error('Error al contactar el backend:', error);
-                return {
+                return { responseType: 'mythCard', data: {
                     myth: "Error al procesar la solicitud", isTrue: false, explanation: `Hubo un problema al procesar la solicitud. Detalles: ${error.message}`,
                     evidenceLevel: "Baja", sources: [], category: "Error", relatedMyths: []
-                };
+                }};
             } finally {
-                loader.classList.add('hidden');
+                if(loader) loader.classList.add('hidden');
             }
         }
 
         async function handleFormSubmit(query) {
              if (!query) return;
-            const newCardData = await fetchApiResponse(query);
+            const responseData = await fetchApiResponse(query);
             
-            if(newCardData && newCardData.myth) {
-                allCards.push(newCardData);
-                currentFilter = 'todos';
-                applyFilter();
-                currentIndex = filteredCards.length - 1;
-                saveHistory();
-                renderAll();
+            if (responseData.responseType === 'clarification') {
+                renderClarificationView(responseData.data);
+            } else { 
+                const newCardData = responseData.data || responseData; 
+                if(newCardData && newCardData.myth) {
+                    allCards.push(newCardData);
+                    currentFilter = 'todos';
+                    applyFilter();
+                    currentIndex = filteredCards.length - 1;
+                    saveHistory();
+                    renderAll();
+                }
             }
-            mythInput.value = '';
+            if(mythInput) mythInput.value = '';
         }
 
         // --- GESTIÓN DE EVENTOS ---
-        mythForm.addEventListener('submit', (e) => {
+        if(mythForm) mythForm.addEventListener('submit', (e) => {
             e.preventDefault();
             handleFormSubmit(mythInput.value.trim());
         });
         
-        micBtn.addEventListener('click', () => {
+        if(micBtn) micBtn.addEventListener('click', () => {
             if (recognition) {
                 recognition.start();
             }
         });
         
-        suggestionsContainer.addEventListener('click', (e) => {
+        if(suggestionsContainer) suggestionsContainer.addEventListener('click', (e) => {
             if (e.target.classList.contains('suggestion-btn')) {
                 const query = e.target.textContent;
                 mythInput.value = query;
@@ -264,6 +274,14 @@
             }
         });
         
+        if(clarificationOptions) clarificationOptions.addEventListener('click', (e) => {
+            if (e.target.classList.contains('clarification-btn')) {
+                const query = e.target.dataset.query;
+                handleFormSubmit(query);
+                hideClarificationView();
+            }
+        });
+
         function handleCardClick(event) {
             const target = event.target.closest('.related-myth-btn');
             if (target) {
@@ -272,7 +290,7 @@
             }
         }
 
-        clearHistoryBtn.addEventListener('click', () => {
+        if(clearHistoryBtn) clearHistoryBtn.addEventListener('click', () => {
             if (confirm('¿Estás seguro de que quieres borrar todo el historial?')) {
                 localStorage.removeItem('mythHistory');
                 allCards = [];
@@ -281,7 +299,7 @@
             }
         });
 
-        filterContainer.addEventListener('click', (e) => {
+        if(filterContainer) filterContainer.addEventListener('click', (e) => {
             if (e.target.classList.contains('filter-btn')) {
                 currentFilter = e.target.dataset.filter;
                 applyFilter();
@@ -290,8 +308,8 @@
             }
         });
         
-        prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateCarouselPosition(); } });
-        nextBtn.addEventListener('click', () => { if (currentIndex < filteredCards.length - 1) { currentIndex++; updateCarouselPosition(); } });
+        if(prevBtn) prevBtn.addEventListener('click', () => { if (currentIndex > 0) { currentIndex--; updateCarouselPosition(); } });
+        if(nextBtn) nextBtn.addEventListener('click', () => { if (currentIndex < filteredCards.length - 1) { currentIndex++; updateCarouselPosition(); } });
         window.addEventListener('resize', () => { if (filteredCards.length > 0) updateCarouselPosition(); });
 
         // --- HISTORIAL Y FILTROS ---
@@ -320,19 +338,34 @@
         }
         
         function renderAll() {
+            hideClarificationView();
             renderFilterButtons();
             renderCarousel();
         }
 
         // --- RENDERIZADO Y UI ---
         
+        function renderClarificationView(data) {
+            if(mainContent) mainContent.classList.add('hidden');
+            if(clarificationQuestion) clarificationQuestion.textContent = data.clarificationQuestion;
+            if(clarificationOptions) clarificationOptions.innerHTML = data.clarificationOptions.map(opt => 
+                `<button class="clarification-btn w-full text-left bg-slate-100 text-slate-700 px-4 py-3 rounded-lg hover:bg-slate-200" data-query="${opt}">${opt}</button>`
+            ).join('');
+            if(clarificationView) clarificationView.classList.remove('hidden');
+        }
+
+        function hideClarificationView() {
+            if(mainContent) mainContent.classList.remove('hidden');
+            if(clarificationView) clarificationView.classList.add('hidden');
+        }
+
         function renderFilterButtons() {
             if (allCards.length === 0) {
-                filterContainer.innerHTML = '';
+                if(filterContainer) filterContainer.innerHTML = '';
                 return;
             }
             const categories = ['todos', ...new Set(allCards.map(card => card.category).filter(Boolean))];
-            filterContainer.innerHTML = `
+            if(filterContainer) filterContainer.innerHTML = `
                 <div class="flex flex-wrap items-center justify-center gap-2">
                     ${categories.map(cat => `
                         <button class="filter-btn text-sm font-semibold px-4 py-2 rounded-full ${currentFilter === cat ? 'active' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-filter="${cat}">
@@ -344,24 +377,28 @@
         
         function renderCarousel() {
             if (filteredCards.length === 0) {
-                carouselContainer.classList.add('hidden');
-                initialState.classList.remove('hidden');
-                navigationControls.classList.add('hidden');
+                if(carouselContainer) carouselContainer.classList.add('hidden');
+                if(initialState) initialState.classList.remove('hidden');
+                if(navigationControls) navigationControls.classList.add('hidden');
                 if (currentFilter !== 'todos') {
-                    initialState.querySelector('h3').textContent = `No hay mitos en la categoría "${currentFilter}"`;
-                    initialState.querySelector('p').textContent = 'Prueba a seleccionar otra categoría o a verificar un nuevo mito.';
+                    if(initialState) {
+                       initialState.querySelector('h3').textContent = `No hay mitos en la categoría "${currentFilter}"`;
+                       initialState.querySelector('p').textContent = 'Prueba a seleccionar otra categoría o a verificar un nuevo mito.';
+                    }
                 } else {
-                    initialState.querySelector('h3').textContent = 'Historial vacío';
-                    initialState.querySelector('p').textContent = 'Los resultados de tus verificaciones aparecerán aquí.';
+                     if(initialState) {
+                        initialState.querySelector('h3').textContent = 'Historial vacío';
+                        initialState.querySelector('p').textContent = 'Los resultados de tus verificaciones aparecerán aquí.';
+                     }
                 }
                 return;
             }
 
-            carouselContainer.classList.remove('hidden');
-            initialState.classList.add('hidden');
-            navigationControls.classList.remove('hidden');
-            navigationControls.classList.add('flex');
-            carouselTrack.innerHTML = filteredCards.map((card, index) => createCardHTML(card, index)).join('');
+            if(carouselContainer) carouselContainer.classList.remove('hidden');
+            if(initialState) initialState.classList.add('hidden');
+            if(navigationControls) navigationControls.classList.remove('hidden');
+            if(navigationControls) navigationControls.classList.add('flex');
+            if(carouselTrack) carouselTrack.innerHTML = filteredCards.map((card, index) => createCardHTML(card, index)).join('');
             const newCardElement = carouselTrack.lastElementChild;
             if (newCardElement) { newCardElement.classList.add('fade-in'); }
             updateCarouselPosition();
@@ -418,22 +455,52 @@
                     </div>`;
         }
         
-        function shareResult(index) {
+        async function shareResult(index) {
             const cardData = filteredCards[index];
             const verdictText = cardData.isTrue ? 'VERDADERO' : 'FALSO';
-            const textToCopy = `He verificado un mito con Mitobot MMX:\n\n🤔 Mito: "${cardData.myth}"\n✅ Veredicto: ${verdictText}\n\nCompruébalo tú mismo en: ${window.location.href}`;
             
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const shareButton = document.querySelectorAll('.share-btn')[index];
-                const originalIcon = shareButton.innerHTML;
-                shareButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>`;
-                shareButton.classList.add('copied');
+            const shareData = {
+                title: 'Mito verificado con Mitobot MMX',
+                text: `He verificado un mito con Mitobot MMX:\n\n🤔 Mito: "${cardData.myth}"\n✅ Veredicto: ${verdictText}\n\n`,
+                url: window.location.href
+            };
 
-                setTimeout(() => {
-                    shareButton.innerHTML = originalIcon;
-                    shareButton.classList.remove('copied');
-                }, 2000);
-            }).catch(err => { console.error('Error al copiar al portapapeles:', err); });
+            if (navigator.share) {
+                try {
+                    await navigator.share(shareData);
+                } catch (err) {
+                    console.error('Error al compartir:', err);
+                }
+            } else {
+                const textToCopy = `${shareData.text}Compruébalo tú mismo en: ${shareData.url}`;
+                const textArea = document.createElement("textarea");
+                textArea.value = textToCopy;
+                textArea.style.position = "fixed";
+                textArea.style.top = "-9999px";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        const shareButton = document.querySelectorAll('.share-btn')[index];
+                        const originalIcon = shareButton.innerHTML;
+                        shareButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>`;
+                        shareButton.classList.add('copied');
+
+                        setTimeout(() => {
+                            shareButton.innerHTML = originalIcon;
+                            shareButton.classList.remove('copied');
+                        }, 2000);
+                    }
+                } catch (err) {
+                    console.error('Error al copiar al portapapeles:', err);
+                }
+
+                document.body.removeChild(textArea);
+            }
         }
 
         function updateCarouselPosition() {
@@ -443,10 +510,11 @@
         }
 
         function updateNavigation() {
-            prevBtn.disabled = currentIndex === 0;
-            nextBtn.disabled = currentIndex >= filteredCards.length - 1;
-            cardCounter.textContent = `${currentIndex + 1} / ${filteredCards.length}`;
-            clearHistoryBtn.style.visibility = allCards.length > 0 ? 'visible' : 'hidden';
+           if (!navigationControls || !prevBtn || !nextBtn || !cardCounter || !clearHistoryBtn) return;
+           prevBtn.disabled = currentIndex === 0;
+           nextBtn.disabled = currentIndex >= filteredCards.length - 1;
+           cardCounter.textContent = `${currentIndex + 1} / ${filteredCards.length}`;
+           clearHistoryBtn.style.visibility = allCards.length > 0 ? 'visible' : 'hidden';
         }
         
     </script>
