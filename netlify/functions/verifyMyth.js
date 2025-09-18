@@ -1,6 +1,8 @@
-// Esta es tu función serverless, que actúa como un backend seguro.
+// Esta es tu función serverless, que actúa como un backend seguro y robusto.
 
 exports.handler = async function (event, context) {
+  console.log("Function invoked..."); // Log 1: Inicio de la ejecución
+
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -16,6 +18,7 @@ exports.handler = async function (event, context) {
   }
 
   if (event.httpMethod !== 'POST') {
+    console.warn("Received non-POST request.");
     return { 
         statusCode: 405, 
         headers: corsHeaders, 
@@ -24,21 +27,27 @@ exports.handler = async function (event, context) {
   }
 
   try {
+    console.log("Parsing request body..."); // Log 2: Intentando parsear
     const { userQuery } = JSON.parse(event.body);
 
     if (!userQuery) {
+      console.warn("userQuery is missing from the request body.");
       return { 
           statusCode: 400, 
           headers: {...corsHeaders, 'Content-Type': 'application/json'}, 
           body: JSON.stringify({ error: 'userQuery is required' }) 
       };
     }
+    console.log(`Received query: "${userQuery}"`); // Log 3: Consulta recibida
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
+        // Este es un error crítico del servidor, no del usuario.
+        console.error("CRITICAL: GEMINI_API_KEY environment variable is not set.");
         throw new Error("La clave API de Gemini no está configurada en el servidor.");
     }
-    
+    console.log("GEMINI_API_KEY found."); // Log 4: Clave API encontrada
+
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
 
     const systemPrompt = `Eres un verificador de datos de élite con acceso a la información científica más reciente. Tu única misión es analizar la consulta del usuario y devolver SIEMPRE un único objeto JSON con la estructura de una "tarjeta de mito". No intentes clarificar preguntas, da siempre la mejor respuesta posible basada en la consulta. La rigurosidad y el formato estricto son críticos.
@@ -74,16 +83,19 @@ exports.handler = async function (event, context) {
         responseSchema: responseSchema,
       },
     };
-
+    
+    console.log("Calling Google Gemini API..."); // Log 5: Llamando a Google
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    console.log(`Google API responded with status: ${response.status}`); // Log 6: Respuesta de Google
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error('Google API Error:', errorBody);
+      console.error('Google API Error Body:', errorBody);
+      // Devolvemos el error de Google de forma estructurada.
       return { 
           statusCode: response.status, 
           headers: {...corsHeaders, 'Content-Type': 'application/json'},
@@ -92,6 +104,7 @@ exports.handler = async function (event, context) {
     }
 
     const result = await response.json();
+    console.log("Successfully received and parsed response from Google API."); // Log 7: Éxito
 
     return {
       statusCode: 200,
@@ -100,11 +113,12 @@ exports.handler = async function (event, context) {
     };
 
   } catch (error) {
-    console.error('Serverless function error:', error.message);
+    // Este bloque captura CUALQUIER error no controlado en el proceso.
+    console.error('!!! Unhandled Serverless Function Error:', error);
     return {
       statusCode: 500,
       headers: {...corsHeaders, 'Content-Type': 'application/json'},
-      body: JSON.stringify({ error: error.message }),
+      body: JSON.stringify({ error: `Internal Server Error: ${error.message}` }),
     };
   }
 };
