@@ -1,26 +1,20 @@
 // Esta es tu función serverless, que actúa como un backend seguro.
 
 exports.handler = async function (event, context) {
-  // --- Manejo de CORS ---
-  // Define las cabeceras que permitirán la comunicación desde cualquier origen.
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
-  // El navegador envía una petición "preflight" OPTIONS antes de la petición POST real.
-  // Debemos responder a esta petición con las cabeceras CORS para dar permiso.
   if (event.httpMethod === 'OPTIONS') {
     return {
-      statusCode: 204, // No Content
+      statusCode: 204,
       headers: corsHeaders,
       body: ''
     };
   }
-  // --- Fin del Manejo de CORS ---
 
-  // Medida de seguridad: Solo permitir peticiones POST.
   if (event.httpMethod !== 'POST') {
     return { 
         statusCode: 405, 
@@ -56,14 +50,25 @@ exports.handler = async function (event, context) {
 Tu objetivo es guiar al usuario hacia la precisión. No respondas a preguntas ambiguas directamente a menos que el usuario elija explícitamente la opción general.`;
     
     const responseSchema = {
-        type: "OBJECT",
-        properties: {
-          "responseType": { "type": "STRING", "enum": ["mythCard", "clarification"] },
-          "data": {
-            "type": "OBJECT",
-            "description": "Contiene los datos para una tarjeta de mito o para una pregunta de clarificación."
+      type: "OBJECT",
+      properties: {
+        "responseType": { "type": "STRING", "enum": ["mythCard", "clarification"] },
+        "data": {
+          "type": "OBJECT",
+          "properties": {
+            "myth": { "type": "STRING" },
+            "isTrue": { "type": "BOOLEAN" },
+            "explanation": { "type": "STRING" },
+            "evidenceLevel": { "type": "STRING", "enum": ["Alta", "Moderada", "Baja"] },
+            "sources": { "type": "ARRAY", "items": { "type": "STRING" } },
+            "category": { "type": "STRING" },
+            "relatedMyths": { "type": "ARRAY", "items": { "type": "STRING" } },
+            "clarificationQuestion": { "type": "STRING" },
+            "clarificationOptions": { "type": "ARRAY", "items": { "type": "STRING" } }
           }
         }
+      },
+      required: ["responseType", "data"]
     };
 
     const payload = {
