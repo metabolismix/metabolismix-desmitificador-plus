@@ -203,7 +203,8 @@
 
         async function fetchApiResponse(userQuery) {
             loader.classList.remove('hidden');
-            const BACKEND_URL = 'https://mmx-desmitificador-app.netlify.app/.netlify/functions/verifyMyth';
+            // *** CORRECCIÓN CLAVE: Usar una ruta relativa ***
+            const BACKEND_URL = '/.netlify/functions/verifyMyth';
             try {
                 const response = await fetch(BACKEND_URL, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -216,7 +217,10 @@
                 const result = await response.json();
                 if (result.candidates && result.candidates[0]?.content?.parts[0]) {
                     return JSON.parse(result.candidates[0].content.parts[0].text);
-                } else { throw new Error("Respuesta de la API inválida o vacía."); }
+                } else if (result.responseType) { // Para manejar la respuesta directa desde el backend
+                    return result;
+                }
+                else { throw new Error("Respuesta de la API inválida o vacía."); }
             } catch (error) {
                 console.error('Error al contactar el backend:', error);
                 return { responseType: 'mythCard', data: {
@@ -235,8 +239,8 @@
             if (responseData.responseType === 'clarification') {
                 renderClarificationView(responseData.data);
             } else { // Es un mythCard
-                const newCardData = responseData.data;
-                if(newCardData) {
+                const newCardData = responseData.data || responseData; // Acepta ambos formatos de respuesta
+                if(newCardData && newCardData.myth) {
                     allCards.push(newCardData);
                     currentFilter = 'todos';
                     applyFilter();
@@ -332,6 +336,7 @@
         }
         
         function renderAll() {
+            hideClarificationView();
             renderFilterButtons();
             renderCarousel();
         }
@@ -413,10 +418,7 @@
         function createCardHTML(cardData, index) {
             const verdictText = cardData.isTrue ? "VERDADERO" : "FALSO";
             const verdictColorClass = cardData.isTrue ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100";
-            const verdictIcon = cardData.isTrue ? '...' : '...'; // SVG code omitted for brevity
-            const sourcesHTML = cardData.sources?.length > 0 ? `...` : '';
-            const relatedMythsHTML = cardData.relatedMyths?.length > 0 ? `...` : '';
-
+            
             return `<div class="carousel-item w-full p-6 md:p-8">
                         <div class="card h-full flex flex-col justify-between">
                             <div>
