@@ -93,13 +93,6 @@
             <div id="filter-container" class="mb-4"></div>
         </div>
 
-        <!-- Mejora 1: Vista de Clarificación (inicialmente oculta) -->
-        <div id="clarification-view" class="hidden form-container bg-white p-6 rounded-2xl mb-8 border border-slate-200/80 fade-in">
-            <p id="clarification-question" class="text-center font-medium text-slate-700 mb-4"></p>
-            <div id="clarification-options" class="flex flex-col gap-3"></div>
-        </div>
-
-
         <section id="results-section" class="relative">
             <div id="loader" class="hidden absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center rounded-2xl z-20">
                 <div class="loader"></div>
@@ -147,10 +140,6 @@
         const suggestionsContainer = document.getElementById('suggestions');
         const clearHistoryBtn = document.getElementById('clear-history-btn');
         const filterContainer = document.getElementById('filter-container');
-        const mainContent = document.getElementById('main-content');
-        const clarificationView = document.getElementById('clarification-view');
-        const clarificationQuestion = document.getElementById('clarification-question');
-        const clarificationOptions = document.getElementById('clarification-options');
         const micBtn = document.getElementById('mic-btn');
 
         // --- ESTADO DE LA APLICACIÓN ---
@@ -203,7 +192,6 @@
 
         async function fetchApiResponse(userQuery) {
             loader.classList.remove('hidden');
-            // *** CORRECCIÓN CLAVE: Usar una ruta relativa ***
             const BACKEND_URL = '/.netlify/functions/verifyMyth';
             try {
                 const response = await fetch(BACKEND_URL, {
@@ -215,18 +203,27 @@
                      throw new Error(`Error en el servidor: ${response.status} - ${errorText}`);
                 }
                 const result = await response.json();
+                
+                // El backend ahora siempre devuelve un objeto con 'candidates'
                 if (result.candidates && result.candidates[0]?.content?.parts[0]) {
-                    return JSON.parse(result.candidates[0].content.parts[0].text);
-                } else if (result.responseType) { // Para manejar la respuesta directa desde el backend
-                    return result;
+                    const jsonText = result.candidates[0].content.parts[0].text;
+                    try { 
+                        // La respuesta de la IA ya no tiene 'responseType', es directamente la tarjeta.
+                        return JSON.parse(jsonText); 
+                    } catch (e) {
+                        console.error("Error al parsear el JSON de la API:", jsonText);
+                        throw new Error("La respuesta de la API no es un JSON válido.");
+                    }
+                } else { 
+                    console.error("Respuesta de la API inválida:", result);
+                    throw new Error("Respuesta de la API inválida o vacía."); 
                 }
-                else { throw new Error("Respuesta de la API inválida o vacía."); }
             } catch (error) {
                 console.error('Error al contactar el backend:', error);
-                return { responseType: 'mythCard', data: {
+                return {
                     myth: "Error al procesar la solicitud", isTrue: false, explanation: `Hubo un problema al procesar la solicitud. Detalles: ${error.message}`,
                     evidenceLevel: "Baja", sources: [], category: "Error", relatedMyths: []
-                }};
+                };
             } finally {
                 loader.classList.add('hidden');
             }
@@ -234,20 +231,15 @@
 
         async function handleFormSubmit(query) {
              if (!query) return;
-            const responseData = await fetchApiResponse(query);
+            const newCardData = await fetchApiResponse(query);
             
-            if (responseData.responseType === 'clarification') {
-                renderClarificationView(responseData.data);
-            } else { // Es un mythCard
-                const newCardData = responseData.data || responseData; // Acepta ambos formatos de respuesta
-                if(newCardData && newCardData.myth) {
-                    allCards.push(newCardData);
-                    currentFilter = 'todos';
-                    applyFilter();
-                    currentIndex = filteredCards.length - 1;
-                    saveHistory();
-                    renderAll();
-                }
+            if(newCardData && newCardData.myth) {
+                allCards.push(newCardData);
+                currentFilter = 'todos';
+                applyFilter();
+                currentIndex = filteredCards.length - 1;
+                saveHistory();
+                renderAll();
             }
             mythInput.value = '';
         }
@@ -272,14 +264,6 @@
             }
         });
         
-        clarificationOptions.addEventListener('click', (e) => {
-            if (e.target.classList.contains('clarification-btn')) {
-                const query = e.target.dataset.query;
-                handleFormSubmit(query);
-                hideClarificationView();
-            }
-        });
-
         function handleCardClick(event) {
             const target = event.target.closest('.related-myth-btn');
             if (target) {
@@ -336,27 +320,12 @@
         }
         
         function renderAll() {
-            hideClarificationView();
             renderFilterButtons();
             renderCarousel();
         }
 
         // --- RENDERIZADO Y UI ---
         
-        function renderClarificationView(data) {
-            mainContent.classList.add('hidden');
-            clarificationQuestion.textContent = data.clarificationQuestion;
-            clarificationOptions.innerHTML = data.clarificationOptions.map(opt => 
-                `<button class="clarification-btn w-full text-left bg-slate-100 text-slate-700 px-4 py-3 rounded-lg hover:bg-slate-200" data-query="${opt}">${opt}</button>`
-            ).join('');
-            clarificationView.classList.remove('hidden');
-        }
-
-        function hideClarificationView() {
-            mainContent.classList.remove('hidden');
-            clarificationView.classList.add('hidden');
-        }
-
         function renderFilterButtons() {
             if (allCards.length === 0) {
                 filterContainer.innerHTML = '';
@@ -425,7 +394,7 @@
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1 pr-4">
                                         <p class="text-sm font-semibold text-slate-500 mb-2">Afirmación:</p>
-                                        <h2 class="text-xl font-bold text-slate-800 mb-6 leading-tight">"${cardData.myth}"</h2>
+                                        <h2 class="text-xl font-bold text-slate-800 mb-6 leading-tight">"${cardData.myth || 'N/A'}"</h2>
                                     </div>
                                     <button class="share-btn flex-shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full p-2" onclick="shareResult(${index})">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
@@ -435,7 +404,7 @@
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="${cardData.isTrue ? 'M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z' : 'M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z'}" clip-rule="evenodd" /></svg>
                                     <span class="tracking-wider">${verdictText}</span>
                                 </div>
-                                <p class="text-slate-600 leading-relaxed text-base">${cardData.explanation}</p>
+                                <p class="text-slate-600 leading-relaxed text-base">${cardData.explanation || 'No se proporcionó una explicación.'}</p>
                             </div>
                             <div class="mt-8 pt-4 border-t border-slate-200 space-y-4">
                                 <div>
