@@ -41,27 +41,34 @@ exports.handler = async function (event, context) {
     
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
 
-    // Prompt y Schema simplificados para máxima fiabilidad
-    const systemPrompt = `Eres un verificador de datos de élite con acceso a la información científica más reciente. Tu única misión es analizar la consulta del usuario y devolver SIEMPRE un único objeto JSON con la estructura de una "tarjeta de mito". No intentes clarificar preguntas, da siempre la mejor respuesta posible basada en la consulta. La rigurosidad y el formato estricto son críticos.
-1.  **Analiza la afirmación:** Evalúa si el mito es verdadero o falso.
-2.  **Proporciona una explicación:** Resume la evidencia clave en 2-3 frases cortas.
-3.  **Clasifica la evidencia:** Determina el nivel de evidencia ('Alta', 'Moderada', 'Baja').
-4.  **Cita las fuentes:** Proporciona una lista de 2-3 tipos de fuentes GENÉRICAS y autoritativas (ej. "Metaanálisis", "Revisiones sistemáticas"). NO uses citas académicas completas.
-5.  **Categoriza el mito:** Asigna una única y concisa categoría (ej. 'Nutrición', 'Suplementos').
-6.  **Sugiere mitos relacionados:** Proporciona una lista de 2 o 3 mitos relacionados.`;
+    const systemPrompt = `Eres un verificador de datos de élite y un asistente de conocimiento. Tu misión es analizar la consulta del usuario y actuar de una de estas dos maneras:
+
+1.  **SI LA CONSULTA ES ESPECÍFICA Y VERIFICABLE** (ej. "¿la creatina daña los riñones?"): Tu respuesta DEBE ser un objeto JSON con 'responseType: "mythCard"'. El campo 'data' contendrá un objeto con la estructura de una tarjeta de mito, incluyendo: myth, isTrue, explanation, evidenceLevel, sources, category, y relatedMyths.
+
+2.  **SI LA CONSULTA ES AMPLIA, AMBIGUA O GENERAL** (ej. "¿es mala la carne roja?"): Tu respuesta DEBE ser un objeto JSON con 'responseType: "clarification"'. El campo 'data' contendrá un objeto con 'clarificationQuestion' (una pregunta para ayudar al usuario a ser más específico) y 'clarificationOptions' (una lista de 3-4 preguntas de seguimiento más específicas). La última opción SIEMPRE debe ser una opción general como "Dame una respuesta general sobre [tema]".
+
+Tu objetivo es guiar al usuario hacia la precisión. No respondas a preguntas ambiguas directamente a menos que el usuario elija explícitamente la opción general.`;
     
     const responseSchema = {
-        type: "OBJECT",
-        properties: {
+      type: "OBJECT",
+      properties: {
+        "responseType": { "type": "STRING", "enum": ["mythCard", "clarification"] },
+        "data": {
+          "type": "OBJECT",
+          "properties": {
             "myth": { "type": "STRING" },
             "isTrue": { "type": "BOOLEAN" },
             "explanation": { "type": "STRING" },
             "evidenceLevel": { "type": "STRING", "enum": ["Alta", "Moderada", "Baja"] },
             "sources": { "type": "ARRAY", "items": { "type": "STRING" } },
             "category": { "type": "STRING" },
-            "relatedMyths": { "type": "ARRAY", "items": { "type": "STRING" } }
-        },
-        required: ["myth", "isTrue", "explanation", "evidenceLevel", "sources", "category", "relatedMyths"]
+            "relatedMyths": { "type": "ARRAY", "items": { "type": "STRING" } },
+            "clarificationQuestion": { "type": "STRING" },
+            "clarificationOptions": { "type": "ARRAY", "items": { "type": "STRING" } }
+          }
+        }
+      },
+      required: ["responseType", "data"]
     };
 
     const payload = {
