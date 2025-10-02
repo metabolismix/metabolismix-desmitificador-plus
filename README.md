@@ -52,7 +52,8 @@ Contribuciones
 Dado que este proyecto se publica con todos los derechos reservados, no se aceptan contribuciones de código externas a través de pull requests.
 
 Licencia y Copyright
-Copyright © 2024 [Tu Nombre Aquí]. Todos los derechos reservados.
+Copyright © 2025 Metabolismix. Todos los derechos reservados.
 
 
 El código de este repositorio se proporciona únicamente con fines de demostración y educativos. No se concede permiso para usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar y/o vender copias del Software sin el permiso explícito y por escrito del titular de los derechos de autor.
+
