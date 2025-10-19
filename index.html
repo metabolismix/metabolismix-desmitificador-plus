@@ -1,305 +1,159 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mitobot MMX+</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .carousel-track { display: flex; transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1); }
-        .carousel-item { flex: 0 0 100%; }
-        .btn-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
-        .loader { border: 4px solid rgba(0,0,0,0.1); border-top-color: #2dd4bf; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .form-container, .results-container { box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05); }
-        .suggestion-btn, .clarification-btn { transition: all 0.2s ease-in-out; }
-        .suggestion-btn:hover, .clarification-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
-        .share-btn { transition: background-color 0.2s; }
-        .copied { background-color: #16a34a !important; color: white !important; }
-        .has-tooltip { position: relative; cursor: help; }
-        .tooltip { visibility: hidden; opacity: 0; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background-color: #1f2937; color: #fff; text-align: center; border-radius: 6px; padding: 8px 12px; z-index: 10; width: 220px; font-size: 0.8rem; font-weight: 500; transition: opacity 0.2s; white-space: normal; }
-        .tooltip::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #1f2937 transparent transparent transparent; }
-        .has-tooltip:hover .tooltip { visibility: visible; opacity: 1; }
-        .filter-btn { transition: all 0.2s; }
-        .filter-btn.active { background-color: #00A99D; color: white; }
-        .related-myth-btn { transition: all 0.2s; border: 1px solid #e2e8f0; }
-        .related-myth-btn:hover { background-color: #f1f5f9; border-color: #cbd5e1; }
-        .mic-btn.is-listening { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(45, 212, 191, 0); } }
-        .difficulty-toggle { color: #475569; }
-        .difficulty-toggle.active { color: #0f766e; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Desmitificador Plus</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 to-gray-100">
+<body class="bg-slate-50 text-slate-900">
+  <main class="max-w-3xl mx-auto px-4 py-8">
+    <header class="mb-6">
+      <h1 class="text-2xl font-semibold">Desmitificador Plus</h1>
+      <p class="text-slate-600">Escribe una afirmación y te devuelvo un veredicto con nivel de evidencia y resumen.</p>
+    </header>
 
-    <main class="w-full max-w-md mx-auto">
-        <header class="text-center mb-8 flex flex-col items-center">
-             <div class="mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="h-20 w-20">
-                    <defs>
-                        <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#00A99D"/>
-                            <stop offset="100%" stop-color="#26C6DA"/>
-                        </linearGradient>
-                    </defs>
-                    <g stroke="url(#logoGradient)" stroke-width="7" stroke-linecap="round">
-                        <path d="M30 10 C 70 30, 70 70, 30 90" fill="none"/>
-                        <path d="M70 10 C 30 30, 30 70, 70 90" fill="none"/>
-                        <line x1="32" y1="20" x2="68" y2="20"/>
-                        <line x1="42" y1="35" x2="58" y2="35"/>
-                        <line x1="50" y1="50" x2="50" y2="50"/>
-                        <line x1="42" y1="65" x2="58" y2="65"/>
-                        <line x1="32" y1="80" x2="68" y2="80"/>
-                    </g>
-                </svg>
-             </div>
-            <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent mb-2">
-                Mitobot MMX
-            </h1>
-            <h2 class="text-2xl font-bold text-slate-700 tracking-tight">Desmitificador Científico</h2>
-            <p class="text-slate-500 mt-3 max-w-xs">Obtén respuestas claras y directas basadas en la evidencia científica actual.</p>
-        </header>
+    <!-- Formulario -->
+    <form id="mythForm" class="flex gap-2 mb-6">
+      <input id="mythInput" type="text" placeholder="Ej.: Las duchas frías post-entreno frenan la hipertrofia"
+             class="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-slate-400" />
+      <button type="submit"
+              class="rounded-lg bg-slate-900 text-white px-4 py-2 hover:bg-slate-800 active:scale-[0.99]">
+        Verificar evidencia
+      </button>
+    </form>
 
-        <div id="main-content">
-            <form id="myth-form" class="form-container bg-white p-6 rounded-2xl mb-8 border border-slate-200/80">
-                <label for="myth-input" class="block text-sm font-bold mb-2 bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent">¿Es verdad que...?</label>
-                <div class="relative">
-                    <textarea id="myth-input" rows="3" class="w-full p-3 pr-12 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-shadow duration-200 placeholder-slate-400" placeholder="...la creatina daña los riñones?"></textarea>
-                    <button id="mic-btn" type="button" class="mic-btn absolute top-1/2 right-3 -translate-y-1/2 p-2 rounded-full text-slate-400 hover:bg-slate-100 hover:text-cyan-500 transition-all" title="Verificar por voz">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                           <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                    </button>
-                </div>
-                
-                <div id="suggestions" class="mt-4 text-sm text-slate-600">
-                    <p class="font-medium mb-2">O prueba con un clic:</p>
-                    <div class="flex flex-wrap gap-2">
-                        <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿El ayuno intermitente adelgaza?</button>
-                        <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿Los alimentos orgánicos son más nutritivos?</button>
-                        <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿Necesitamos 8 vasos de agua al día?</button>
-                    </div>
-                </div>
-                
-                <button type="submit" class="mt-6 w-full bg-gradient-to-r from-teal-400 to-cyan-500 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 transition-all duration-300 transform hover:-translate-y-0.5">
-                    Verificar Evidencia
-                </button>
-            </form>
+    <!-- Sugerencias -->
+    <div class="mb-6 flex flex-wrap gap-2">
+      <button class="suggestion-btn text-sm px-3 py-1 rounded-full bg-slate-200 hover:bg-slate-300">La sal sube siempre la tensión</button>
+      <button class="suggestion-btn text-sm px-3 py-1 rounded-full bg-slate-200 hover:bg-slate-300">Cardio en ayunas quema más grasa</button>
+      <button class="suggestion-btn text-sm px-3 py-1 rounded-full bg-slate-200 hover:bg-slate-300">Las proteínas dañan el riñón</button>
+    </div>
 
-            <div id="filter-container" class="mb-4"></div>
-        </div>
+    <!-- Loader -->
+    <div id="loader" class="hidden">
+      <div class="flex items-center gap-3 text-slate-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity="0.25"></circle>
+          <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="4"></path>
+        </svg>
+        Procesando…
+      </div>
+    </div>
 
+    <!-- Resultados -->
+    <section id="results" class="space-y-4 mt-6"></section>
 
-        <section id="results-section" class="relative">
-            <div id="loader" class="hidden absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center rounded-2xl z-20">
-                <div class="loader"></div>
-            </div>
-            <div id="carousel-container" class="results-container overflow-hidden rounded-2xl bg-white relative border border-slate-200/80">
-                 <div id="carousel-track" class="carousel-track" onclick="handleCardClick(event)"></div>
-            </div>
-            <div id="initial-state" class="results-container text-center p-10 bg-white rounded-2xl border border-slate-200/80">
-                <svg class="mx-auto h-12 w-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                </svg>
-                <h3 class="mt-4 text-lg font-medium text-slate-800">Esperando tu consulta</h3>
-                <p class="mt-1 text-sm text-slate-500">Los resultados de la verificación aparecerán aquí.</p>
-            </div>
-            <div id="navigation-controls" class="hidden justify-between items-center mt-4 px-2">
-                <button id="prev-btn" class="btn-arrow p-2 rounded-full bg-white shadow-md hover:bg-slate-100 transition-all disabled:opacity-50">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-                </button>
-                <div class="flex items-center gap-4">
-                    <div id="card-counter" class="text-sm font-semibold text-slate-600 tracking-wider"></div>
-                    <button id="clear-history-btn" title="Limpiar historial" class="text-slate-400 hover:text-red-500 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
-                    </button>
-                </div>
-                <button id="next-btn" class="btn-arrow p-2 rounded-full bg-white shadow-md hover:bg-slate-100 transition-all disabled:opacity-50">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-                </button>
-            </div>
-        </section>
+    <!-- Estado inicial -->
+    <p id="initial-state" class="text-slate-500 mt-8">Escribe una afirmación arriba o pulsa una sugerencia para empezar.</p>
+  </main>
 
-    </main>
+  <script>
+    // --- Referencias DOM
+    const form = document.getElementById('mythForm');
+    const input = document.getElementById('mythInput');
+    const loader = document.getElementById('loader');
+    const results = document.getElementById('results');
+    const initialState = document.getElementById('initial-state');
 
-    <script>
-        // --- ELEMENTOS DEL DOM ---
-        const mythForm = document.getElementById('myth-form');
-        const mythInput = document.getElementById('myth-input');
-        // ... (resto de elementos)
-        
-        // --- ESTADO DE LA APLICACIÓN ---
-        let allCards = [];
-        let filteredCards = [];
-        let currentIndex = 0;
-        let currentFilter = 'todos';
-        
-        // --- RECONOCIMIENTO DE VOZ ---
-        // ... (código de reconocimiento de voz)
+    // --- Utilidades UI
+    const show = el => el && el.classList.remove('hidden');
+    const hide = el => el && el.classList.add('hidden');
 
-        // --- DATOS Y CONFIGURACIÓN ---
-        const mythOfTheDay = {
-            myth: "El 'Mito del Día': Beber agua con limón en ayunas detoxifica el cuerpo.", isTrue: false,
-            explanation_simple: "El cuerpo humano tiene sistemas de detoxificación muy eficientes (hígado, riñones). El agua con limón hidrata, pero no tiene propiedades 'detox' especiales más allá de las del agua.",
-            explanation_expert: "El concepto de 'detox' mediante alimentos es una falacia fisiológica. La homeostasis del pH sanguíneo es regulada estrictamente por sistemas buffer y la función renal y respiratoria, no viéndose afectada por la dieta.",
-            evidenceLevel: "Baja", sources: ["Revisiones de Fisiología", "Estudios de Nutrición"], category: "Nutrición",
-            relatedMyths: ["¿El vinagre de manzana ayuda a perder peso?", "¿Beber café deshidrata?"]
-        };
+    function colorForVerdict(verdict) {
+      const v = (verdict || '').toLowerCase();
+      if (v.includes('verdadero') || v.includes('cierto')) return 'bg-green-100 text-green-800';
+      if (v.includes('parcial') || v.includes('depende')) return 'bg-amber-100 text-amber-900';
+      if (v.includes('no concluyente') || v.includes('incierto')) return 'bg-slate-200 text-slate-800';
+      return 'bg-red-100 text-red-800'; // Falso por defecto
+    }
 
-        const evidenceDefinitions = {
-            "Alta": "Basado en el consenso de múltiples estudios de la máxima calidad (metaanálisis, revisiones sistemáticas).",
-            "Moderada": "Respaldado por algunos ensayos controlados o estudios observacionales consistentes.",
-            "Baja": "Basado en estudios pequeños, contradictorios, anecdóticos o en mecanismos teóricos."
-        };
+    function evidenciometro(level) {
+      const L = (level || '').toLowerCase();
+      if (L.includes('alta')) return '🟢 Alta';
+      if (L.includes('moderada')) return '🟠 Moderada';
+      return '🔴 Baja';
+    }
 
-        // --- LÓGICA PRINCIPAL ---
-        document.addEventListener('DOMContentLoaded', loadHistory);
+    function normalizeResult(r) {
+      if (!r || typeof r !== 'object') return {};
+      const evidenceLevel = r.evidence_level ?? r.evidenceLevel ?? '';
+      return {
+        claim: r.claim ?? '',
+        verdict: r.verdict ?? '',
+        summary: r.summary ?? '',
+        evidenceLevel,
+        citations: Array.isArray(r.citations) ? r.citations : []
+      };
+    }
 
-        async function fetchApiResponse(userQuery) {
-            loader.classList.remove('hidden');
-            const BACKEND_URL = '/.netlify/functions/verifyMyth';
-            try {
-                const response = await fetch(BACKEND_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userQuery: userQuery })
-                });
-                if (!response.ok) {
-                     const errorText = await response.text();
-                     throw new Error(`Error en el servidor: ${response.status} - ${errorText}`);
-                }
-                const result = await response.json();
-                
-                if (result.candidates && result.candidates[0]?.content?.parts[0]) {
-                    const jsonText = result.candidates[0].content.parts[0].text;
-                    try { 
-                        return JSON.parse(jsonText); 
-                    } catch (e) {
-                        console.error("Error al parsear el JSON de la API:", jsonText);
-                        throw new Error("La respuesta de la API no es un JSON válido.");
-                    }
-                } else { 
-                    console.error("Respuesta de la API inválida:", result);
-                    throw new Error("Respuesta de la API inválida o vacía."); 
-                }
-            } catch (error) {
-                console.error('Error al contactar el backend:', error);
-                return {
-                    isError: true, 
-                    myth: "Error al procesar la solicitud", isTrue: false, explanation_simple: `Hubo un problema al procesar la solicitud. Detalles: ${error.message}`,
-                    explanation_expert: `Detalles técnicos: ${error.message}`,
-                    evidenceLevel: "Baja", sources: [], category: "Error", relatedMyths: []
-                };
-            } finally {
-                if(loader) loader.classList.add('hidden');
-            }
-        }
-        
-        // **NUEVA FUNCIÓN DE VALIDACIÓN MEJORADA**
-        function isCardDataValid(cardData) {
-            return cardData && 
-                   typeof cardData.myth === 'string' && cardData.myth &&
-                   typeof cardData.explanation_simple === 'string' && cardData.explanation_simple &&
-                   typeof cardData.explanation_expert === 'string' && cardData.explanation_expert &&
-                   typeof cardData.evidenceLevel === 'string' && cardData.evidenceLevel &&
-                   !cardData.isError;
-        }
+    function renderResultCard(res) {
+      const n = normalizeResult(res);
+      const verdictClass = colorForVerdict(n.verdict);
 
-        async function handleFormSubmit(query) {
-             if (!query) return;
-            const newCardData = await fetchApiResponse(query);
-            
-            if(!isCardDataValid(newCardData)) {
-                const errorCard = {
-                    myth: query, isTrue: false,
-                    explanation_simple: "Mitobot no pudo generar una respuesta completa y fiable para esta consulta. Por favor, intenta reformular tu pregunta o inténtalo de nuevo más tarde.",
-                    explanation_expert: "La generación de la respuesta ha fallado. Esto puede deberse a una ambigüedad en la consulta o a un error transitorio de la IA. La respuesta recibida no pasó el control de calidad.",
-                    evidenceLevel: "Baja", sources: [], category: "Error", relatedMyths: []
-                };
-                const tempCards = [...allCards, errorCard];
-                currentFilter = 'todos';
-                applyFilter(tempCards); 
-                currentIndex = filteredCards.length - 1;
-                renderAll(true);
-                return;
-            }
+      const cites = n.citations.length
+        ? `<div class="mt-3 text-sm">
+             <span class="font-medium">Citas/Fuentes:</span>
+             <ul class="list-disc pl-5 mt-1 space-y-1">${n.citations.map(c => `<li class="break-words"><a class="underline" href="${c}" target="_blank" rel="noopener">${c}</a></li>`).join('')}</ul>
+           </div>`
+        : '';
 
-            allCards.push(newCardData);
-            currentFilter = 'todos';
-            applyFilter();
-            currentIndex = filteredCards.length - 1;
-            renderAll();
-            
-            if(mythInput) mythInput.value = '';
-        }
+      return `
+        <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          ${n.claim ? `<div class="text-slate-500 text-sm mb-1">Afirmación</div><h2 class="text-lg font-medium mb-3">${n.claim}</h2>` : ''}
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span class="text-xs px-2 py-1 rounded-full ${verdictClass}">Veredicto: ${n.verdict || '—'}</span>
+            <span class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-800">Evidencia: ${evidenciometro(n.evidenceLevel)}</span>
+          </div>
+          <p class="text-slate-800 leading-relaxed">${n.summary || 'Sin resumen.'}</p>
+          ${cites}
+        </article>
+      `;
+    }
 
-        // --- GESTIÓN DE EVENTOS ---
-        // ...
-        
-        // --- HISTORIAL Y FILTROS ---
-        // ...
-        
-        function renderAll(isTemporary = false) {
-            renderFilterButtons();
-            renderCarousel();
-            if(!isTemporary) {
-                saveHistory();
-            }
-        }
+    async function verify(query) {
+      const endpoint = '/.netlify/functions/verifyMyth';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userQuery: query })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data?.error || `Error HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      return data?.data ?? data; // backend devuelve { ok:true, data: {...} }
+    }
 
-        // --- RENDERIZADO Y UI ---
-        // ...
-        
-        function createCardHTML(cardData, index) {
-            // ...
-            
-            return `<div class="carousel-item w-full p-6 md:p-8">
-                        <div class="card h-full flex flex-col justify-between">
-                            <div>
-                                <div class="flex justify-between items-start">
-                                    <div class="flex-1 pr-4">
-                                        <p class="text-sm font-semibold text-slate-500 mb-2">Afirmación:</p>
-                                        <h2 class="text-xl font-bold text-slate-800 mb-6 leading-tight">"${cardData.myth || 'N/A'}"</h2>
-                                    </div>
-                                    <button class="share-btn flex-shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full p-2" onclick="shareResult(${index})">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
-                                    </button>
-                                </div>
-                                <div class="flex items-center text-base font-bold py-2 px-3 rounded-lg ${cardData.isTrue ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100"} mb-4">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="${cardData.isTrue ? 'M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z' : 'M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z'}" clip-rule="evenodd" /></svg>
-                                    <span class="tracking-wider">${cardData.isTrue ? "VERDADERO" : "FALSO"}</span>
-                                </div>
-                                
-                                <div class="flex items-center justify-end mb-2 text-xs font-semibold">
-                                    <div class="flex items-center p-1 rounded-full bg-slate-100">
-                                        <button class="difficulty-toggle active px-3 py-1 rounded-full" data-target="simple">Para todos</button>
-                                        <button class="difficulty-toggle px-3 py-1 rounded-full" data-target="expert">Experto</button>
-                                    </div>
-                                </div>
-                                <div class="explanation-container">
-                                    <p class="explanation-simple text-slate-600 leading-relaxed text-base">${cardData.explanation_simple || 'No se proporcionó una explicación.'}</p>
-                                    <p class="explanation-expert text-slate-600 leading-relaxed text-base hidden">${cardData.explanation_expert || 'No se proporcionó una explicación técnica.'}</p>
-                                </div>
+    async function handleSubmit(query) {
+      if (!query) return;
+      results.innerHTML = '';
+      hide(initialState);
+      show(loader);
+      try {
+        const payload = await verify(query);
+        results.innerHTML = renderResultCard(payload);
+      } catch (err) {
+        results.innerHTML = `
+          <div class="rounded-lg border border-red-300 bg-red-50 text-red-800 p-4">
+            <div class="font-medium mb-1">No he podido verificar la afirmación.</div>
+            <div class="text-sm">${(err && err.message) || 'Error desconocido.'}</div>
+          </div>`;
+      } finally {
+        hide(loader);
+      }
+    }
 
-                            </div>
-                            <div class="mt-8 pt-4 border-t border-slate-200 space-y-4">
-                                <div>
-                                    <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Evidenciómetro:</p>
-                                    ${createEvidenciometroHTML(cardData.evidenceLevel || 'Baja')}
-                                </div>
-                                ${cardData.sources?.length > 0 ? `<div class="mt-4"><p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Basado en:</p><ul class="text-sm text-slate-600 list-disc list-inside space-y-1">${cardData.sources.map(s => `<li>${s}</li>`).join('')}</ul></div>` : ''}
-                                ${cardData.relatedMyths?.length > 0 ? `<div class="mt-4"><p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Mitos Relacionados:</p><div class="flex flex-col gap-2">${cardData.relatedMyths.map(m => `<button class="related-myth-btn text-sm text-left text-slate-700 p-2 rounded-md" data-myth="${m}">- ${m}</button>`).join('')}</div></div>` : ''}
-                            </div>
-                        </div>
-                    </div>`;
-        }
-        
-    </script>
+    // Eventos
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleSubmit((input.value || '').trim());
+    });
+
+    document.querySelectorAll('.suggestion-btn').forEach(btn => {
+      btn.addEventListener('click', () => handleSubmit(btn.textContent.trim()));
+    });
+  </script>
 </body>
 </html>
-
