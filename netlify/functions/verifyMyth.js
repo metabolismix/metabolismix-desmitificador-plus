@@ -10,20 +10,33 @@ exports.handler = async function (event, context) {
     return { statusCode: 204, headers: cors, body: '' };
   }
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Method Not Allowed. Use POST.' }) };
+    return {
+      statusCode: 405,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Method Not Allowed. Use POST.' })
+    };
   }
 
   try {
     const { userQuery } = JSON.parse(event.body || '{}');
     if (!userQuery || typeof userQuery !== 'string') {
-      return { statusCode: 400, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Parámetro "userQuery" requerido.' }) };
+      return {
+        statusCode: 400,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Parámetro "userQuery" requerido.' })
+      };
     }
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
-      return { statusCode: 500, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Falta GEMINI_API_KEY en variables de entorno.' }) };
+      return {
+        statusCode: 500,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Falta GEMINI_API_KEY en variables de entorno.' })
+      };
     }
 
+    // Modelo estable (evita previas deprecadas)
     const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -40,6 +53,7 @@ Eres un verificador de afirmaciones científicas. Devuelve JSON estricto con:
 No des recomendaciones clínicas personalizadas.
 `;
 
+    // ⬇️ Sin "additionalProperties"
     const responseSchema = {
       type: 'object',
       properties: {
@@ -52,8 +66,8 @@ No des recomendaciones clínicas personalizadas.
         category: { type: 'string' },
         relatedMyths: { type: 'array', items: { type: 'string' } }
       },
-      required: ['myth','isTrue','explanation_simple','explanation_expert','evidenceLevel'],
-      additionalProperties: true
+      required: ['myth','isTrue','explanation_simple','explanation_expert','evidenceLevel']
+      // Si vieras otro 400 por "enum", comenta la línea de enum de evidenceLevel.
     };
 
     const payload = {
@@ -69,17 +83,34 @@ No des recomendaciones clínicas personalizadas.
       }
     };
 
-    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const result = await res.json().catch(()=> ({}));
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await res.json().catch(() => ({}));
 
     if (!res.ok) {
       const msg = result?.error?.message || JSON.stringify(result);
-      return { statusCode: res.status, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: `Google API Error: ${msg}` }) };
+      return {
+        statusCode: res.status,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: `Google API Error: ${msg}` })
+      };
     }
 
     // Devolvemos RAW para que el frontend siga leyendo candidates[0].content.parts[0].text
-    return { statusCode: 200, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify(result) };
+    return {
+      statusCode: 200,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+      body: JSON.stringify(result)
+    };
   } catch (error) {
-    return { statusCode: 500, headers: { ...cors, 'Content-Type': 'application/json' }, body: JSON.stringify({ error: `Internal Server Error: ${error?.message || String(error)}` }) };
+    return {
+      statusCode: 500,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: `Internal Server Error: ${error?.message || String(error)}` })
+    };
   }
 };
