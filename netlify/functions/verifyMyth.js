@@ -48,7 +48,7 @@ exports.handler = async function (event, context) {
     }
     console.log("GEMINI_API_KEY found."); // Log 4: Clave API encontrada
 
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     const systemPrompt = `Eres un verificador de datos de élite con acceso a la información científica más reciente. Tu única misión es analizar la consulta del usuario y devolver SIEMPRE un único objeto JSON con la estructura de una "tarjeta de mito". No intentes clarificar preguntas, da siempre la mejor respuesta posible basada en la consulta. La rigurosidad y el formato estricto son críticos.
 1.  **Analiza la afirmación:** Evalúa si el mito es verdadero o falso.
@@ -122,3 +122,4 @@ exports.handler = async function (event, context) {
     };
   }
 };
+
