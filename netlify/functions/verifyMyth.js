@@ -1,119 +1,124 @@
-// netlify/functions/verifyMyth.js
+// Esta es tu función serverless, que actúa como un backend seguro y robusto.
 
-const ALLOWED_ORIGIN = '*'; // ajusta a tu dominio si quieres restringir
+exports.handler = async function (event, context) {
+  console.log("Function invoked..."); // Log 1: Inicio de la ejecución
 
-const headers = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
 
-const respond = (statusCode, bodyObj) => ({
-  statusCode,
-  headers,
-  body: JSON.stringify(bodyObj),
-});
-
-exports.handler = async (event, context) => {
-  // Preflight
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
+    return {
+      statusCode: 204,
+      headers: corsHeaders,
+      body: ''
+    };
   }
 
   if (event.httpMethod !== 'POST') {
-    return respond(405, { error: 'Method Not Allowed. Use POST.' });
+    console.warn("Received non-POST request.");
+    return { 
+        statusCode: 405, 
+        headers: corsHeaders, 
+        body: 'Method Not Allowed' 
+    };
   }
 
   try {
-    const { userQuery } = JSON.parse(event.body || '{}');
-    if (!userQuery || typeof userQuery !== 'string') {
-      return respond(400, { error: 'Parámetro "userQuery" requerido.' });
+    console.log("Parsing request body..."); // Log 2: Intentando parsear
+    const { userQuery } = JSON.parse(event.body);
+
+    if (!userQuery) {
+      console.warn("userQuery is missing from the request body.");
+      return { 
+          statusCode: 400, 
+          headers: {...corsHeaders, 'Content-Type': 'application/json'}, 
+          body: JSON.stringify({ error: 'userQuery is required' }) 
+      };
     }
+    console.log(`Received query: "${userQuery}"`); // Log 3: Consulta recibida
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
-      return respond(500, { error: 'Falta GEMINI_API_KEY en variables de entorno.' });
+        // Este es un error crítico del servidor, no del usuario.
+        console.error("CRITICAL: GEMINI_API_KEY environment variable is not set.");
+        throw new Error("La clave API de Gemini no está configurada en el servidor.");
     }
+    console.log("GEMINI_API_KEY found."); // Log 4: Clave API encontrada
 
-    const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
 
-    const systemInstruction = `
-Eres un verificador de afirmaciones científicas. Devuelves JSON estricto con:
-- claim: afirmación del usuario, parafraseada si es necesario
-- verdict: "Verdadero" | "Parcial" | "Falso" | "No concluyente"
-- evidence_level: "Alta" | "Moderada" | "Baja"
-- summary: explicación breve, objetiva, citando el tipo de evidencia
-- citations: lista de URLs relevantes (máx. 5), si existen públicos
-
-Normas:
-- No prometas asesoramiento médico.
-- Si la evidencia es limitada o conflictiva, marca "No concluyente".
-- En "citations", prioriza fuentes revisadas por pares o guías.
-`;
-
+    const systemPrompt = `Eres un verificador de datos de élite con acceso a la información científica más reciente. Tu única misión es analizar la consulta del usuario y devolver SIEMPRE un único objeto JSON con la estructura de una "tarjeta de mito". No intentes clarificar preguntas, da siempre la mejor respuesta posible basada en la consulta. La rigurosidad y el formato estricto son críticos.
+1.  **Analiza la afirmación:** Evalúa si el mito es verdadero o falso.
+2.  **Proporciona DOS explicaciones:** Es CRÍTICO que generes ambas.
+    - **explanation_simple:** Resumen en lenguaje CLARO Y SENCILLO, sin tecnicismos.
+    - **explanation_expert:** Explicación técnica y profesional para expertos.
+3.  **Clasifica la evidencia:** Determina el nivel de evidencia ('Alta', 'Moderada', 'Baja').
+4.  **Cita las fuentes:** Proporciona una lista de 2-3 tipos de fuentes GENÉRICAS y autoritativas. IMPORTANTE: NO uses citas académicas completas con autores, años o títulos de revistas. USA SOLO categorías como "Metaanálisis", "Revisiones sistemáticas (Cochrane)", "Ensayos Clínicos Aleatorizados (RCTs)", "Guías de Práctica Clínica".
+5.  **Categoriza el mito:** Asigna una única y concisa categoría (ej. 'Nutrición', 'Suplementos').
+6.  **Sugiere mitos relacionados:** Proporciona una lista de 2 o 3 mitos relacionados.`;
+    
     const responseSchema = {
-      type: 'object',
-      properties: {
-        claim: { type: 'string' },
-        verdict: { type: 'string', enum: ['Verdadero', 'Parcial', 'Falso', 'No concluyente'] },
-        evidence_level: { type: 'string', enum: ['Alta', 'Moderada', 'Baja'] },
-        summary: { type: 'string' },
-        citations: { type: 'array', items: { type: 'string' } }
-      },
-      required: ['verdict', 'summary'],
-      additionalProperties: true
+        type: "OBJECT",
+        properties: {
+            "myth": { "type": "STRING" },
+            "isTrue": { "type": "BOOLEAN" },
+            "explanation_simple": { "type": "STRING" },
+            "explanation_expert": { "type": "STRING" },
+            "evidenceLevel": { "type": "STRING", "enum": ["Alta", "Moderada", "Baja"] },
+            "sources": { "type": "ARRAY", "items": { "type": "STRING" } },
+            "category": { "type": "STRING" },
+            "relatedMyths": { "type": "ARRAY", "items": { "type": "STRING" } }
+        },
+        required: ["myth", "isTrue", "explanation_simple", "explanation_expert", "evidenceLevel", "sources", "category", "relatedMyths"]
     };
 
     const payload = {
-      systemInstruction: { role: 'user', parts: [{ text: systemInstruction }] },
-      contents: [
-        { role: 'user', parts: [{ text: userQuery }] }
-      ],
+      contents: [{ parts: [{ text: userQuery }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
       generationConfig: {
-        temperature: 0.2,
-        topP: 0.9,
-        topK: 32,
-        maxOutputTokens: 1024,
-        responseMimeType: 'application/json',
-        responseSchema
-      }
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+      },
     };
-
-    const apiRes = await fetch(API_URL, {
+    
+    console.log("Calling Google Gemini API..."); // Log 5: Llamando a Google
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
+    console.log(`Google API responded with status: ${response.status}`); // Log 6: Respuesta de Google
 
-    const raw = await apiRes.json().catch(() => ({}));
-
-    if (!apiRes.ok) {
-      const msg = raw?.error?.message || JSON.stringify(raw);
-      return respond(apiRes.status, { error: `Google API Error: ${msg}` });
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('Google API Error Body:', errorBody);
+      // Devolvemos el error de Google de forma estructurada.
+      return { 
+          statusCode: response.status, 
+          headers: {...corsHeaders, 'Content-Type': 'application/json'},
+          body: JSON.stringify({ error: `Google API Error: ${errorBody}` }) 
+      };
     }
 
-    // Extrae el JSON del primer candidato
-    const part = raw?.candidates?.[0]?.content?.parts?.[0];
-    let data = {};
-    if (part?.text) {
-      try { data = JSON.parse(part.text); } catch { data = { summary: part.text } }
-    } else if (typeof part === 'object' && part !== null) {
-      // En casos raros puede venir ya como objeto
-      data = part;
-    }
+    const result = await response.json();
+    console.log("Successfully received and parsed response from Google API."); // Log 7: Éxito
 
-    // Normalización mínima de campos
-    if (data && typeof data === 'object') {
-      if (data.evidenceLevel && !data.evidence_level) {
-        data.evidence_level = data.evidenceLevel;
-      }
-      if (!Array.isArray(data.citations)) data.citations = [];
-      if (!data.claim) data.claim = userQuery;
-    }
+    return {
+      statusCode: 200,
+      headers: {...corsHeaders, 'Content-Type': 'application/json'},
+      body: JSON.stringify(result),
+    };
 
-    return respond(200, { ok: true, data });
-  } catch (err) {
-    return respond(500, { error: `Server error: ${err?.message || String(err)}` });
+  } catch (error) {
+    // Este bloque captura CUALQUIER error no controlado en el proceso.
+    console.error('!!! Unhandled Serverless Function Error:', error);
+    return {
+      statusCode: 500,
+      headers: {...corsHeaders, 'Content-Type': 'application/json'},
+      body: JSON.stringify({ error: `Internal Server Error: ${error.message}` }),
+    };
   }
 };
