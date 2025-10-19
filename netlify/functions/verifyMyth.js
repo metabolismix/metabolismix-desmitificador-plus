@@ -1,125 +1,159 @@
-// Esta es tu función serverless, que actúa como un backend seguro y robusto.
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Desmitificador Plus</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <main class="max-w-3xl mx-auto px-4 py-8">
+    <header class="mb-6">
+      <h1 class="text-2xl font-semibold">Desmitificador Plus</h1>
+      <p class="text-slate-600">Escribe una afirmación y te devuelvo un veredicto con nivel de evidencia y resumen.</p>
+    </header>
 
-exports.handler = async function (event, context) {
-  console.log("Function invoked..."); // Log 1: Inicio de la ejecución
+    <!-- Formulario -->
+    <form id="mythForm" class="flex gap-2 mb-6">
+      <input id="mythInput" type="text" placeholder="Ej.: Las duchas frías post-entreno frenan la hipertrofia"
+             class="flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-slate-400" />
+      <button type="submit"
+              class="rounded-lg bg-slate-900 text-white px-4 py-2 hover:bg-slate-800 active:scale-[0.99]">
+        Verificar evidencia
+      </button>
+    </form>
 
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
+    <!-- Sugerencias -->
+    <div class="mb-6 flex flex-wrap gap-2">
+      <button class="suggestion-btn text-sm px-3 py-1 rounded-full bg-slate-200 hover:bg-slate-300">La sal sube siempre la tensión</button>
+      <button class="suggestion-btn text-sm px-3 py-1 rounded-full bg-slate-200 hover:bg-slate-300">Cardio en ayunas quema más grasa</button>
+      <button class="suggestion-btn text-sm px-3 py-1 rounded-full bg-slate-200 hover:bg-slate-300">Las proteínas dañan el riñón</button>
+    </div>
 
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 204,
-      headers: corsHeaders,
-      body: ''
-    };
-  }
+    <!-- Loader -->
+    <div id="loader" class="hidden">
+      <div class="flex items-center gap-3 text-slate-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity="0.25"></circle>
+          <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="4"></path>
+        </svg>
+        Procesando…
+      </div>
+    </div>
 
-  if (event.httpMethod !== 'POST') {
-    console.warn("Received non-POST request.");
-    return { 
-        statusCode: 405, 
-        headers: corsHeaders, 
-        body: 'Method Not Allowed' 
-    };
-  }
+    <!-- Resultados -->
+    <section id="results" class="space-y-4 mt-6"></section>
 
-  try {
-    console.log("Parsing request body..."); // Log 2: Intentando parsear
-    const { userQuery } = JSON.parse(event.body);
+    <!-- Estado inicial -->
+    <p id="initial-state" class="text-slate-500 mt-8">Escribe una afirmación arriba o pulsa una sugerencia para empezar.</p>
+  </main>
 
-    if (!userQuery) {
-      console.warn("userQuery is missing from the request body.");
-      return { 
-          statusCode: 400, 
-          headers: {...corsHeaders, 'Content-Type': 'application/json'}, 
-          body: JSON.stringify({ error: 'userQuery is required' }) 
+  <script>
+    // --- Referencias DOM
+    const form = document.getElementById('mythForm');
+    const input = document.getElementById('mythInput');
+    const loader = document.getElementById('loader');
+    const results = document.getElementById('results');
+    const initialState = document.getElementById('initial-state');
+
+    // --- Utilidades UI
+    const show = el => el && el.classList.remove('hidden');
+    const hide = el => el && el.classList.add('hidden');
+
+    function colorForVerdict(verdict) {
+      const v = (verdict || '').toLowerCase();
+      if (v.includes('verdadero') || v.includes('cierto')) return 'bg-green-100 text-green-800';
+      if (v.includes('parcial') || v.includes('depende')) return 'bg-amber-100 text-amber-900';
+      if (v.includes('no concluyente') || v.includes('incierto')) return 'bg-slate-200 text-slate-800';
+      return 'bg-red-100 text-red-800'; // Falso por defecto
+    }
+
+    function evidenciometro(level) {
+      const L = (level || '').toLowerCase();
+      if (L.includes('alta')) return '🟢 Alta';
+      if (L.includes('moderada')) return '🟠 Moderada';
+      return '🔴 Baja';
+    }
+
+    function normalizeResult(r) {
+      if (!r || typeof r !== 'object') return {};
+      const evidenceLevel = r.evidence_level ?? r.evidenceLevel ?? '';
+      return {
+        claim: r.claim ?? '',
+        verdict: r.verdict ?? '',
+        summary: r.summary ?? '',
+        evidenceLevel,
+        citations: Array.isArray(r.citations) ? r.citations : []
       };
     }
-    console.log(`Received query: "${userQuery}"`); // Log 3: Consulta recibida
 
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
-        // Este es un error crítico del servidor, no del usuario.
-        console.error("CRITICAL: GEMINI_API_KEY environment variable is not set.");
-        throw new Error("La clave API de Gemini no está configurada en el servidor.");
+    function renderResultCard(res) {
+      const n = normalizeResult(res);
+      const verdictClass = colorForVerdict(n.verdict);
+
+      const cites = n.citations.length
+        ? `<div class="mt-3 text-sm">
+             <span class="font-medium">Citas/Fuentes:</span>
+             <ul class="list-disc pl-5 mt-1 space-y-1">${n.citations.map(c => `<li class="break-words"><a class="underline" href="${c}" target="_blank" rel="noopener">${c}</a></li>`).join('')}</ul>
+           </div>`
+        : '';
+
+      return `
+        <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          ${n.claim ? `<div class="text-slate-500 text-sm mb-1">Afirmación</div><h2 class="text-lg font-medium mb-3">${n.claim}</h2>` : ''}
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span class="text-xs px-2 py-1 rounded-full ${verdictClass}">Veredicto: ${n.verdict || '—'}</span>
+            <span class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-800">Evidencia: ${evidenciometro(n.evidenceLevel)}</span>
+          </div>
+          <p class="text-slate-800 leading-relaxed">${n.summary || 'Sin resumen.'}</p>
+          ${cites}
+        </article>
+      `;
     }
-    console.log("GEMINI_API_KEY found."); // Log 4: Clave API encontrada
 
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+    async function verify(query) {
+      const endpoint = '/.netlify/functions/verifyMyth';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userQuery: query })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data?.error || `Error HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      return data?.data ?? data; // backend devuelve { ok:true, data: {...} }
+    }
 
-    const systemPrompt = `Eres un verificador de datos de élite con acceso a la información científica más reciente. Tu única misión es analizar la consulta del usuario y devolver SIEMPRE un único objeto JSON con la estructura de una "tarjeta de mito". No intentes clarificar preguntas, da siempre la mejor respuesta posible basada en la consulta. La rigurosidad y el formato estricto son críticos.
-1.  **Analiza la afirmación:** Evalúa si el mito es verdadero o falso.
-2.  **Proporciona DOS explicaciones:** Es CRÍTICO que generes ambas.
-    - **explanation_simple:** Resumen en lenguaje CLARO Y SENCILLO, sin tecnicismos.
-    - **explanation_expert:** Explicación técnica y profesional para expertos.
-3.  **Clasifica la evidencia:** Determina el nivel de evidencia ('Alta', 'Moderada', 'Baja').
-4.  **Cita las fuentes:** Proporciona una lista de 2-3 tipos de fuentes GENÉRICAS y autoritativas. IMPORTANTE: NO uses citas académicas completas con autores, años o títulos de revistas. USA SOLO categorías como "Metaanálisis", "Revisiones sistemáticas (Cochrane)", "Ensayos Clínicos Aleatorizados (RCTs)", "Guías de Práctica Clínica".
-5.  **Categoriza el mito:** Asigna una única y concisa categoría (ej. 'Nutrición', 'Suplementos').
-6.  **Sugiere mitos relacionados:** Proporciona una lista de 2 o 3 mitos relacionados.`;
-    
-    const responseSchema = {
-        type: "OBJECT",
-        properties: {
-            "myth": { "type": "STRING" },
-            "isTrue": { "type": "BOOLEAN" },
-            "explanation_simple": { "type": "STRING" },
-            "explanation_expert": { "type": "STRING" },
-            "evidenceLevel": { "type": "STRING", "enum": ["Alta", "Moderada", "Baja"] },
-            "sources": { "type": "ARRAY", "items": { "type": "STRING" } },
-            "category": { "type": "STRING" },
-            "relatedMyths": { "type": "ARRAY", "items": { "type": "STRING" } }
-        },
-        required: ["myth", "isTrue", "explanation_simple", "explanation_expert", "evidenceLevel", "sources", "category", "relatedMyths"]
-    };
+    async function handleSubmit(query) {
+      if (!query) return;
+      results.innerHTML = '';
+      hide(initialState);
+      show(loader);
+      try {
+        const payload = await verify(query);
+        results.innerHTML = renderResultCard(payload);
+      } catch (err) {
+        results.innerHTML = `
+          <div class="rounded-lg border border-red-300 bg-red-50 text-red-800 p-4">
+            <div class="font-medium mb-1">No he podido verificar la afirmación.</div>
+            <div class="text-sm">${(err && err.message) || 'Error desconocido.'}</div>
+          </div>`;
+      } finally {
+        hide(loader);
+      }
+    }
 
-    const payload = {
-      contents: [{ parts: [{ text: userQuery }] }],
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
-      },
-    };
-    
-    console.log("Calling Google Gemini API..."); // Log 5: Llamando a Google
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    // Eventos
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleSubmit((input.value || '').trim());
     });
-    console.log(`Google API responded with status: ${response.status}`); // Log 6: Respuesta de Google
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error('Google API Error Body:', errorBody);
-      // Devolvemos el error de Google de forma estructurada.
-      return { 
-          statusCode: response.status, 
-          headers: {...corsHeaders, 'Content-Type': 'application/json'},
-          body: JSON.stringify({ error: `Google API Error: ${errorBody}` }) 
-      };
-    }
-
-    const result = await response.json();
-    console.log("Successfully received and parsed response from Google API."); // Log 7: Éxito
-
-    return {
-      statusCode: 200,
-      headers: {...corsHeaders, 'Content-Type': 'application/json'},
-      body: JSON.stringify(result),
-    };
-
-  } catch (error) {
-    // Este bloque captura CUALQUIER error no controlado en el proceso.
-    console.error('!!! Unhandled Serverless Function Error:', error);
-    return {
-      statusCode: 500,
-      headers: {...corsHeaders, 'Content-Type': 'application/json'},
-      body: JSON.stringify({ error: `Internal Server Error: ${error.message}` }),
-    };
-  }
-};
-
+    document.querySelectorAll('.suggestion-btn').forEach(btn => {
+      btn.addEventListener('click', () => handleSubmit(btn.textContent.trim()));
+    });
+  </script>
+</body>
+</html>
