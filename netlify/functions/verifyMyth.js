@@ -36,24 +36,36 @@ exports.handler = async function (event, context) {
       };
     }
 
-    // Modelo estable (evita previas deprecadas)
+    // Modelo estable (puedes sobreescribir con variable de entorno)
     const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
     const systemPrompt = `
-Eres un verificador de afirmaciones científicas. Devuelve JSON estricto con:
-- myth: afirmación del usuario (parafraseada si procede)
+Eres un verificador de afirmaciones científicas.
+
+Devuelve JSON con:
+- myth: string (afirmación parafraseada si procede)
 - isTrue: boolean
-- explanation_simple: explicación breve y clara para público general
-- explanation_expert: explicación rigurosa con matices metodológicos
+- explanation_simple: 2–4 frases, lenguaje cotidiano (nivel B1), sin jerga ni acrónimos,
+  sin porcentajes salvo que sean imprescindibles; usa ejemplo/analogía si ayuda.
+- explanation_expert: versión técnica y matizada (calidad y diseño de estudios)
 - evidenceLevel: "Alta" | "Moderada" | "Baja"
-- sources: lista de URLs o referencias (máx. 5)
-- category: etiqueta breve (p.ej., "Nutrición", "Ejercicio", "Sueño"...)
-- relatedMyths: lista de 0..5 afirmaciones relacionadas
-No des recomendaciones clínicas personalizadas.
+- sources: array<string> con TIPOS DE EVIDENCIA (p. ej., "Revisiones sistemáticas",
+  "Ensayos clínicos aleatorizados", "Cohortes observacionales", "Opinión de expertos").
+  NO incluyas URLs, DOIs ni identificadores. SOLO tipos.
+- category: etiqueta breve (Nutrición, Ejercicio, Sueño, etc.)
+- relatedMyths: 0..5 afirmaciones relacionadas (sin URLs).
+
+Criterios del nivel de evidencia:
+- Alta: metaanálisis/revisiones sistemáticas consistentes o múltiples ECA grandes.
+- Moderada: algunos ECA pequeños o consistencia observacional.
+- Baja: evidencia limitada/contradictoria o basada en mecanismos/series pequeñas.
+
+Nunca des recomendaciones clínicas personalizadas.
+NO incluyas URLs ni DOIs en ningún campo.
 `;
 
-    // ⬇️ Sin "additionalProperties"
+    // Importante: sin "additionalProperties" para evitar 400
     const responseSchema = {
       type: 'object',
       properties: {
@@ -67,7 +79,6 @@ No des recomendaciones clínicas personalizadas.
         relatedMyths: { type: 'array', items: { type: 'string' } }
       },
       required: ['myth','isTrue','explanation_simple','explanation_expert','evidenceLevel']
-      // Si vieras otro 400 por "enum", comenta la línea de enum de evidenceLevel.
     };
 
     const payload = {
@@ -100,7 +111,37 @@ No des recomendaciones clínicas personalizadas.
       };
     }
 
-    // Devolvemos RAW para que el frontend siga leyendo candidates[0].content.parts[0].text
+    // --- SANEADO ANTI-URL (garantiza que nunca lleguen URLs al cliente) ---
+    const urlLike = /(https?:\/\/|www\.)[^\s)]+/gi;
+    const stripUrls = (s) => typeof s === 'string' ? s.replace(urlLike, '').replace(/\(\s*\)/g,'').trim() : s;
+    const isUrlish = (s) => typeof s === 'string' && /(https?:\/\/|www\.)/i.test(s);
+
+    try {
+      const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const obj = JSON.parse(text);
+
+      const clean = {
+        myth: stripUrls(obj.myth || userQuery),
+        isTrue: !!obj.isTrue,
+        explanation_simple: stripUrls(obj.explanation_simple || ''),
+        explanation_expert: stripUrls(obj.explanation_expert || ''),
+        evidenceLevel: stripUrls(obj.evidenceLevel || 'Baja'),
+        // Mantener SOLO tipos (no URLs)
+        sources: Array.isArray(obj.sources) ? obj.sources.filter(s => !isUrlish(s)).map(stripUrls) : [],
+        category: stripUrls(obj.category || ''),
+        relatedMyths: Array.isArray(obj.relatedMyths) ? obj.relatedMyths.filter(s => !isUrlish(s)).map(stripUrls) : []
+      };
+
+      // Reinyectamos el JSON saneado en el RAW para que el frontend no cambie
+      const safeText = JSON.stringify(clean);
+      if (result?.candidates?.[0]?.content?.parts?.[0]) {
+        result.candidates[0].content.parts[0].text = safeText;
+      }
+    } catch {
+      // Si por algún motivo no se puede parsear, no hacemos nada (el frontend ya maneja fallback)
+    }
+    // ---------------------------------------------------------------------
+
     return {
       statusCode: 200,
       headers: { ...cors, 'Content-Type': 'application/json' },
