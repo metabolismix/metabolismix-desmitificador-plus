@@ -36,6 +36,7 @@ exports.handler = async function (event, context) {
       };
     }
 
+    // Modelo estable (puedes sobreescribir con env GEMINI_MODEL)
     const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -45,8 +46,8 @@ Eres un verificador de afirmaciones científicas.
 Devuelve JSON con:
 - myth: string (afirmación parafraseada si procede)
 - isTrue: boolean
-- explanation_simple: 2–4 frases, lenguaje cotidiano (nivel B1), sin jerga ni acrónimos,
-  sin porcentajes salvo que sean imprescindibles; usa ejemplo/analogía si ayuda.
+- explanation_simple: 2–4 frases, lenguaje cotidiano (nivel B1), sin jerga ni acrónimos;
+  usa ejemplo/analogía si ayuda y evita porcentajes innecesarios.
 - explanation_expert: versión técnica y matizada (calidad y diseño de estudios)
 - evidenceLevel: "Alta" | "Moderada" | "Baja"
 - sources: array<string> con TIPOS DE EVIDENCIA (p. ej., "Revisiones sistemáticas",
@@ -64,6 +65,7 @@ Nunca des recomendaciones clínicas personalizadas.
 NO incluyas URLs ni DOIs en ningún campo.
 `;
 
+    // Schema mínimo compatible (sin additionalProperties ni enum)
     const responseSchema = {
       type: 'object',
       properties: {
@@ -71,7 +73,7 @@ NO incluyas URLs ni DOIs en ningún campo.
         isTrue: { type: 'boolean' },
         explanation_simple: { type: 'string' },
         explanation_expert: { type: 'string' },
-        evidenceLevel: { type: 'string', enum: ['Alta', 'Moderada', 'Baja'] },
+        evidenceLevel: { type: 'string' },
         sources: { type: 'array', items: { type: 'string' } },
         category: { type: 'string' },
         relatedMyths: { type: 'array', items: { type: 'string' } }
@@ -86,10 +88,11 @@ NO incluyas URLs ni DOIs en ningún campo.
         temperature: 0.2,
         topP: 0.9,
         topK: 32,
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
         responseMimeType: 'application/json',
         responseSchema
       }
+      // Nota: no añadimos safetySettings para evitar incompatibilidades de campos.
     };
 
     const res = await fetch(API_URL, {
@@ -109,38 +112,117 @@ NO incluyas URLs ni DOIs en ningún campo.
       };
     }
 
-    // --- SANEADO ANTI-URL Y FORZADO JSON LIMPIO ---
+    // ---------- Normalización robusta a JSON puro ----------
     const urlLike = /(https?:\/\/|www\.)[^\s)]+/gi;
-    const stripUrls = (s) => typeof s === 'string' ? s.replace(urlLike, '').replace(/\(\s*\)/g,'').trim() : s;
+    const stripUrls = (s) => typeof s === 'string'
+      ? s.replace(urlLike, '').replace(/\(\s*\)/g, '').trim()
+      : s;
     const isUrlish = (s) => typeof s === 'string' && /(https?:\/\/|www\.)/i.test(s);
 
-    try {
-      const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      const obj = JSON.parse(text);
+    const stripFences = (t) => {
+      let x = (t || '').trim();
+      if (x.startsWith('```')) x = x.replace(/^```(?:json)?\s*/i, '').replace(/```$/,'');
+      return x.trim();
+    };
 
-      const clean = {
-        myth: stripUrls(obj.myth || userQuery),
-        isTrue: !!obj.isTrue,
-        explanation_simple: stripUrls(obj.explanation_simple || ''),
-        explanation_expert: stripUrls(obj.explanation_expert || ''),
-        evidenceLevel: stripUrls(obj.evidenceLevel || 'Baja'),
-        sources: Array.isArray(obj.sources) ? obj.sources.filter(s => !isUrlish(s)).map(stripUrls) : [],
-        category: stripUrls(obj.category || ''),
-        relatedMyths: Array.isArray(obj.relatedMyths) ? obj.relatedMyths.filter(s => !isUrlish(s)).map(stripUrls) : []
-      };
+    const robustParse = (text) => {
+      // 1) directo
+      try { return JSON.parse(text); } catch {}
+      const t = text.trim();
 
-      const safeText = JSON.stringify(clean); // <- JSON puro y válido
-      if (result?.candidates?.[0]?.content?.parts?.[0]) {
-        result.candidates[0].content.parts[0].text = safeText;
+      // 2) array toplevel -> primer objeto
+      if (t.startsWith('[')) {
+        try {
+          const a = JSON.parse(t);
+          if (Array.isArray(a) && a.length && typeof a[0] === 'object') return a[0];
+        } catch {}
       }
-    } catch {
-      // Si por algún motivo no se puede parsear, dejamos el RAW (el frontend tiene parseo robusto)
+
+      // 3) extraer bloque { ... } balanceado
+      const start = t.indexOf('{');
+      if (start >= 0) {
+        let depth = 0, inStr = false, esc = false;
+        for (let i = start; i < t.length; i++) {
+          const ch = t[i];
+          if (inStr) {
+            if (esc) esc = false;
+            else if (ch === '\\') esc = true;
+            else if (ch === '"') inStr = false;
+          } else {
+            if (ch === '"') inStr = true;
+            else if (ch === '{') depth++;
+            else if (ch === '}') {
+              depth--;
+              if (depth === 0) {
+                const snippet = t.slice(start, i + 1);
+                try { return JSON.parse(snippet); } catch {}
+                break;
+              }
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    // 1) Si no hay candidatos (bloqueo), creamos fallback
+    const pf = result?.promptFeedback;
+    if (!result?.candidates?.length) {
+      const fallback = {
+        myth: userQuery,
+        isTrue: false,
+        explanation_simple: 'No puedo valorar esta afirmación con seguridad por políticas de la API.',
+        explanation_expert: `La API devolvió 0 candidatos. Motivo: ${pf?.blockReason || 'desconocido'}.`,
+        evidenceLevel: 'Baja',
+        sources: [],
+        category: 'Bloqueada',
+        relatedMyths: []
+      };
+      const safeText = JSON.stringify(fallback);
+      result.candidates = [{ content: { parts: [{ text: safeText }] } }];
     }
-    // ---------------------------------------------
+
+    // 2) Si hay texto, lo normalizamos; si no, fallback
+    const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const parsed = robustParse(stripFences(rawText));
+    const obj = parsed && typeof parsed === 'object' ? parsed : {
+      myth: userQuery,
+      isTrue: false,
+      explanation_simple: 'No he podido estructurar bien la respuesta. En resumen: no hay pruebas sólidas para afirmarlo con seguridad.',
+      explanation_expert: 'Salida no JSON o truncada; respuesta normalizada en servidor.',
+      evidenceLevel: 'Baja',
+      sources: [],
+      category: '',
+      relatedMyths: []
+    };
+
+    // 3) Saneado anti-URL y tipado
+    const clean = {
+      myth: stripUrls(obj.myth || userQuery),
+      isTrue: !!obj.isTrue,
+      explanation_simple: stripUrls(obj.explanation_simple || ''),
+      explanation_expert: stripUrls(obj.explanation_expert || ''),
+      evidenceLevel: stripUrls(obj.evidenceLevel || 'Baja'),
+      sources: Array.isArray(obj.sources) ? obj.sources.filter(s => !isUrlish(s)).map(stripUrls) : [],
+      category: stripUrls(obj.category || ''),
+      relatedMyths: Array.isArray(obj.relatedMyths) ? obj.relatedMyths.filter(s => !isUrlish(s)).map(stripUrls) : []
+    };
+
+    // 4) Reinyecta JSON puro en la respuesta
+    const safeText = JSON.stringify(clean);
+    if (result?.candidates?.[0]?.content?.parts?.[0]) {
+      result.candidates[0].content.parts[0].text = safeText;
+    } else {
+      result.candidates = [{ content: { parts: [{ text: safeText }] } }];
+    }
 
     return {
       statusCode: 200,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      headers: {
+        ...cors,
+        'Content-Type': 'application/json',
+        'x-mmx-func-version': 'v7-maxsafe-2025-10-23'
+      },
       body: JSON.stringify(result)
     };
   } catch (error) {
