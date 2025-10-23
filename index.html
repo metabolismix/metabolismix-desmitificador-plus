@@ -151,37 +151,53 @@
     const isUrlish = s => typeof s === 'string' && /(https?:\/\/|www\.)/i.test(s);
 
     // --------- PARSEO ROBUSTO DEL TEXTO DEL MODELO ---------
-    function parseCandidateJSON(text){
-      if (typeof text !== 'string') throw new Error('Respuesta sin texto JSON.');
-      let t = text.trim();
+    function parseCandidateJSON(text, userQuery){
+      let t = (typeof text === 'string' ? text : '').trim();
+      if (t.startsWith('```')) t = t.replace(/^```(?:json)?\s*/i, '').replace(/```$/,'').trim();
 
-      // 1) quitar fences ```json ... ```
-      if (t.startsWith('```')) {
-        t = t.replace(/^```(?:json)?\s*/i, '').replace(/```$/,'').trim();
-      }
-
-      // 2) intento directo
+      // 1) JSON directo
       try { return JSON.parse(t); } catch {}
 
-      // 3) extraer primer objeto JSON balanceado
+      // 2) Array toplevel -> 1er objeto
+      if (t.startsWith('[')) {
+        try {
+          const a = JSON.parse(t);
+          if (Array.isArray(a) && a.length && typeof a[0] === 'object') return a[0];
+        } catch {}
+      }
+
+      // 3) Extraer objeto balanceado { ... }
       const start = t.indexOf('{');
-      if (start === -1) throw new Error('No se encontró objeto JSON.');
-      let depth = 0, inStr = false, esc = false, end = -1;
-      for (let i = start; i < t.length; i++){
-        const ch = t[i];
-        if (inStr){
-          if (esc) { esc = false; }
-          else if (ch === '\\') { esc = true; }
-          else if (ch === '"') { inStr = false; }
-        } else {
-          if (ch === '"') inStr = true;
-          else if (ch === '{') depth++;
-          else if (ch === '}'){ depth--; if (depth === 0){ end = i; break; } }
+      if (start >= 0) {
+        let depth = 0, inStr = false, esc = false, end = -1;
+        for (let i = start; i < t.length; i++){
+          const ch = t[i];
+          if (inStr){
+            if (esc) esc = false;
+            else if (ch === '\\') esc = true;
+            else if (ch === '"') inStr = false;
+          } else {
+            if (ch === '"') inStr = true;
+            else if (ch === '{') depth++;
+            else if (ch === '}'){ depth--; if (depth === 0){ end = i; break; } }
+          }
+        }
+        if (end !== -1) {
+          try { return JSON.parse(t.slice(start, end + 1)); } catch {}
         }
       }
-      if (end === -1) throw new Error('JSON incompleto en la respuesta.');
-      const snippet = t.slice(start, end + 1);
-      return JSON.parse(snippet);
+
+      // 4) Fallback sin romper la UI
+      return {
+        myth: stripUrls(userQuery || ''),
+        isTrue: false,
+        explanation_simple: 'No he podido estructurar la respuesta. Prueba a formular la afirmación de forma más concreta.',
+        explanation_expert: 'Salida no JSON del modelo; normalizada en cliente.',
+        evidenceLevel: 'Baja',
+        sources: [],
+        category: '',
+        relatedMyths: []
+      };
     }
 
     // ---------- API ----------
@@ -197,8 +213,11 @@
         }
         const data = await res.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error('Respuesta de la API inválida o vacía.');
-        return parseCandidateJSON(text);
+        if (!text) {
+          // Incluso si viene vacío, devolvemos fallback; no rompemos UX
+          return parseCandidateJSON('', userQuery);
+        }
+        return parseCandidateJSON(text, userQuery);
       } finally {
         hide(loader);
       }
@@ -321,6 +340,7 @@
         currentIndex = clamp(currentIndex, 0, count - 1);
         carouselTrack.style.transform = `translateX(-${currentIndex * 100}%)`;
       } else { show(initialState); hide(navigationControls); }
+      updateCardCounter();
     }
 
     function updateCardCounter(){
@@ -331,12 +351,12 @@
     }
 
     function setupPagination(){
-      prevBtn.onclick = () => { currentIndex = clamp(currentIndex - 1, 0, filteredCards.length - 1); renderCarousel(); updateCardCounter(); };
-      nextBtn.onclick = () => { currentIndex = clamp(currentIndex + 1, 0, filteredCards.length - 1); renderCarousel(); updateCardCounter(); };
+      prevBtn.onclick = () => { currentIndex = clamp(currentIndex - 1, 0, filteredCards.length - 1); renderCarousel(); };
+      nextBtn.onclick = () => { currentIndex = clamp(currentIndex + 1, 0, filteredCards.length - 1); renderCarousel(); };
       clearHistoryBtn.onclick = () => {
         allCards = []; filteredCards = []; currentIndex = 0;
         localStorage.removeItem(LS_KEY);
-        renderCarousel(); updateCardCounter(); renderFilterButtons();
+        renderCarousel(); renderFilterButtons();
       };
     }
 
@@ -358,7 +378,7 @@
           currentFilter = btn.dataset.cat;
           filterContainer.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
           btn.classList.add('active');
-          applyFilter(); currentIndex = 0; renderCarousel(); updateCardCounter();
+          applyFilter(); currentIndex = 0; renderCarousel();
         });
       });
     }
@@ -373,7 +393,7 @@
     function loadHistory(){
       try { allCards = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { allCards = []; }
       currentFilter = 'todos';
-      renderFilterButtons(); applyFilter(); renderCarousel(); updateCardCounter(); setupPagination();
+      renderFilterButtons(); applyFilter(); renderCarousel(); setupPagination();
     }
 
     // ---------- INTERACCIÓN ----------
@@ -381,26 +401,25 @@
       if (!query) return;
       try {
         const card = await fetchApiResponse(query);
+
+        // Saneado extra por si quedara alguna URL
+        card.myth = stripUrls(card.myth);
+        card.explanation_simple = stripUrls(card.explanation_simple);
+        card.explanation_expert = stripUrls(card.explanation_expert);
+        card.category = stripUrls(card.category);
+        card.sources = Array.isArray(card.sources) ? card.sources.filter(s=>!isUrlish(s)).map(stripUrls) : [];
+        card.relatedMyths = Array.isArray(card.relatedMyths) ? card.relatedMyths.filter(s=>!isUrlish(s)).map(stripUrls) : [];
+
+        // Validación mínima; si falla, ajustamos a algo seguro
         if (!isCardDataValid(card)) {
-          allCards.push({
-            myth: stripUrls(query), isTrue:false,
-            explanation_simple:'No se pudo generar una respuesta completa y fiable.',
-            explanation_expert:'La respuesta de la IA no pasó el control de estructura JSON.',
-            evidenceLevel:'Baja', sources:[], category:'Error', relatedMyths:[]
-          });
-        } else {
-          // Saneado extra por si llegara alguna URL
-          card.myth = stripUrls(card.myth);
-          card.explanation_simple = stripUrls(card.explanation_simple);
-          card.explanation_expert = stripUrls(card.explanation_expert);
-          card.category = stripUrls(card.category);
-          card.sources = Array.isArray(card.sources) ? card.sources.filter(s=>!isUrlish(s)).map(stripUrls) : [];
-          card.relatedMyths = Array.isArray(card.relatedMyths) ? card.relatedMyths.filter(s=>!isUrlish(s)).map(stripUrls) : [];
-          allCards.push(card);
+          card.isTrue = false;
+          card.evidenceLevel = 'Baja';
         }
+
+        allCards.push(card);
         currentFilter = 'todos';
         currentIndex = allCards.length - 1;
-        saveHistory(); renderFilterButtons(); applyFilter(); renderCarousel(); updateCardCounter();
+        saveHistory(); renderFilterButtons(); applyFilter(); renderCarousel();
         mythInput.value = '';
       } catch (err) {
         allCards.push({
@@ -410,7 +429,7 @@
           evidenceLevel:'Baja', sources:[], category:'Error', relatedMyths:[]
         });
         currentFilter = 'todos'; currentIndex = allCards.length - 1;
-        saveHistory(); renderFilterButtons(); applyFilter(); renderCarousel(); updateCardCounter();
+        saveHistory(); renderFilterButtons(); applyFilter(); renderCarousel();
       }
     }
 
@@ -443,7 +462,7 @@
 
     // ---------- EVENTOS ----------
     mythForm.addEventListener('submit', (e)=>{ e.preventDefault(); handleFormSubmit(mythInput.value.trim()); });
-    suggestionsEl.querySelectorAll('.suggestion-btn').forEach(b=> b.addEventListener('click', ()=>handleFormSubmit(b.textContent.trim())));
+    document.getElementById('suggestions').querySelectorAll('.suggestion-btn').forEach(b=> b.addEventListener('click', ()=>handleFormSubmit(b.textContent.trim())));
 
     // Micrófono (Web Speech API)
     (function setupMic(){
