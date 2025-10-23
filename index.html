@@ -1,434 +1,490 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Mitobot MMX+</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Inter', sans-serif; }
-    .carousel-track { display:flex; transition: transform 0.5s cubic-bezier(0.25,0.8,0.25,1); }
-    .carousel-item { flex:0 0 100%; }
-    .btn-arrow:disabled { opacity:0.3; cursor:not-allowed; }
-    .loader{ border:4px solid rgba(0,0,0,0.1); border-top-color:#2dd4bf; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-    .form-container,.results-container{ box-shadow:0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05); }
-    .suggestion-btn{ transition:all .2s; } .suggestion-btn:hover{ transform:translateY(-2px); box-shadow:0 4px 10px rgba(0,0,0,.08);}
-    .mic-btn.is-listening { animation:pulse 1.5s infinite; }
-    @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(45,212,191,.4);} 70%{box-shadow:0 0 0 10px rgba(45,212,191,0);} }
-    .difficulty-toggle{ color:#475569; } .difficulty-toggle.active{ color:#0f766e; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.1);}
-    .filter-btn{ transition:all .2s; } .filter-btn.active{ background:#00A99D; color:#fff; }
-    .related-myth-btn{ transition:all .2s; border:1px solid #e2e8f0; } .related-myth-btn:hover{ background:#f1f5f9; border-color:#cbd5e1; }
-    .share-btn{ transition: background-color .2s; } .copied{ background:#16a34a !important; color:#fff !important; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificador de Mitos Científicos</title>
+    <style>
+        :root {
+            --color-bg: #f4f7f6;
+            --color-primary: #007bff;
+            --color-secondary: #6c757d;
+            --color-success: #28a745;
+            --color-danger: #dc3545;
+            --color-info: #17a2b8;
+            --color-warning: #ffc107;
+            --color-text: #343a40;
+            --color-card-bg: #ffffff;
+            --color-border: #e0e0e0;
+            --shadow-light: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-medium: 0 8px 12px rgba(0, 0, 0, 0.15);
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background-color: var(--color-bg);
+        }
+        /* -- Componentes de UI -- */
+        #input-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background-color: var(--color-card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-light);
+        }
+        #myth-input {
+            flex-grow: 1;
+            padding: 12px 15px;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        #myth-input:focus {
+            border-color: var(--color-primary);
+            outline: none;
+        }
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            font-weight: 600;
+        }
+        #submit-btn {
+            background-color: var(--color-primary);
+            color: white;
+        }
+        #submit-btn:hover {
+            background-color: #0056b3;
+        }
+        #submit-btn:disabled {
+            background-color: var(--color-secondary);
+            cursor: not-allowed;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--color-primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        #filter-buttons button {
+            background-color: var(--color-secondary);
+            color: white;
+            margin-right: 5px;
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+        #filter-buttons button.active {
+            background-color: var(--color-primary);
+        }
+        /* -- Estilo de la Tarjeta (Card) -- */
+        #card-carousel {
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            box-shadow: var(--shadow-medium);
+            background-color: var(--color-card-bg);
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            padding: 30px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            position: absolute;
+            transition: opacity 0.4s, transform 0.4s;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .card.active {
+            opacity: 1;
+            pointer-events: all;
+            position: relative;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--color-border);
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        .card-header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--color-text);
+        }
+        .status-badge {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 700;
+            color: white;
+        }
+        .status-badge.true { background-color: var(--color-success); }
+        .status-badge.false { background-color: var(--color-danger); }
+        .status-badge.error { background-color: var(--color-secondary); }
+        
+        .card-body h3 {
+            font-size: 18px;
+            color: var(--color-primary);
+            margin-top: 15px;
+            margin-bottom: 5px;
+            border-left: 3px solid var(--color-info);
+            padding-left: 10px;
+        }
+        .card-body p, .card-body ul {
+            margin: 0;
+            padding-left: 13px; /* Alineación con el borde */
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        .card-body ul {
+            list-style-type: '• ';
+            margin-top: 5px;
+        }
+        .evidence-level {
+            font-weight: 600;
+            color: var(--color-info);
+            padding: 5px 0;
+            border-top: 1px solid var(--color-border);
+            margin-top: 15px;
+        }
+        /* -- Navegación del Carrusel -- */
+        .carousel-nav button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 20px;
+            line-height: 1;
+            z-index: 10;
+        }
+        #prev-btn { left: 10px; }
+        #next-btn { right: 10px; }
+        .carousel-nav button:disabled {
+            background-color: rgba(0, 0, 0, 0.3);
+            cursor: not-allowed;
+        }
+        #card-counter {
+            font-weight: 600;
+            color: var(--color-secondary);
+        }
+    </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 to-gray-100">
+<body>
+    <div class="container">
+        <h1>🔍 Verificador de Mitos Científicos (Gemini)</h1>
 
-  <main class="w-full max-w-md mx-auto">
-    <header class="text-center mb-8 flex flex-col items-center">
-      <div class="mb-4">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="h-20 w-20">
-          <defs>
-            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#00A99D"/>
-              <stop offset="100%" stop-color="#26C6DA"/>
-            </linearGradient>
-          </defs>
-          <g stroke="url(#logoGradient)" stroke-width="7" stroke-linecap="round" fill="none">
-            <path d="M30 10 C 70 30, 70 70, 30 90"/>
-            <path d="M70 10 C 30 30, 30 70, 70 90"/>
-            <line x1="32" y1="20" x2="68" y2="20"/>
-            <line x1="42" y1="35" x2="58" y2="35"/>
-            <line x1="42" y1="65" x2="58" y2="65"/>
-            <line x1="32" y1="80" x2="68" y2="80"/>
-          </g>
-        </svg>
-      </div>
-      <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent mb-2">
-        Mitobot MMX
-      </h1>
-      <h2 class="text-2xl font-bold text-slate-700 tracking-tight">Desmitificador Científico</h2>
-      <p class="text-slate-500 mt-3 max-w-xs">Respuestas claras y directas basadas en la evidencia.</p>
-    </header>
+        <form id="input-form">
+            <input type="text" id="myth-input" placeholder="Escribe aquí una afirmación o mito para verificar..." required>
+            <button type="submit" id="submit-btn">Verificar</button>
+            <div class="loader" id="loader"></div>
+        </form>
 
-    <div id="main-content">
-      <form id="myth-form" class="form-container bg-white p-6 rounded-2xl mb-8 border border-slate-200/80">
-        <label for="myth-input" class="block text-sm font-bold mb-2 bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent">¿Es verdad que...?</label>
-        <div class="relative">
-          <textarea id="myth-input" rows="3" class="w-full p-3 pr-12 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-shadow placeholder-slate-400" placeholder="...la creatina daña los riñones?"></textarea>
-          <button id="mic-btn" type="button" class="mic-btn absolute top-1/2 right-3 -translate-y-1/2 p-2 rounded-full text-slate-400 hover:bg-slate-100 hover:text-cyan-500 transition-all" title="Verificar por voz">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-            </svg>
-          </button>
+        <div class="controls">
+            <div id="filter-buttons">
+                <button data-filter="todos" class="active">Todos</button>
+                <button data-filter="true">Verdadero</button>
+                <button data-filter="false">Falso</button>
+                <button data-filter="error">Error</button>
+            </div>
+            <span id="card-counter">0/0</span>
         </div>
 
-        <div id="suggestions" class="mt-4 text-sm text-slate-600">
-          <p class="font-medium mb-2">O prueba con un clic:</p>
-          <div class="flex flex-wrap gap-2">
-            <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿El ayuno intermitente adelgaza?</button>
-            <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿Los alimentos orgánicos son más nutritivos?</button>
-            <button type="button" class="suggestion-btn bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs hover:bg-slate-200">¿Necesitamos 8 vasos de agua al día?</button>
-          </div>
+        <div id="card-carousel">
+            <div class="carousel-nav">
+                <button id="prev-btn" disabled>&lt;</button>
+                <button id="next-btn" disabled>&gt;</button>
+            </div>
         </div>
-
-        <button type="submit" class="mt-6 w-full bg-gradient-to-r from-teal-400 to-cyan-500 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 transition-all">
-          Verificar Evidencia
-        </button>
-      </form>
-
-      <div id="filter-container" class="mb-4"></div>
     </div>
 
-    <section id="results-section" class="relative">
-      <div id="loader" class="hidden absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center rounded-2xl z-20">
-        <div class="loader"></div>
-      </div>
+    <script>
+        // --- 1. Variables Globales y Estado ---
+        let allCards = JSON.parse(localStorage.getItem('mythCards')) || [];
+        let filteredCards = allCards;
+        let currentIndex = allCards.length > 0 ? allCards.length - 1 : -1;
+        let currentFilter = 'todos';
 
-      <div id="carousel-container" class="results-container overflow-hidden rounded-2xl bg-white relative border border-slate-200/80">
-        <div id="carousel-track" class="carousel-track" onclick="handleCardClick(event)"></div>
-      </div>
+        // --- 2. Referencias al DOM ---
+        const mythInput = document.getElementById('myth-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const loader = document.getElementById('loader');
+        const cardCarousel = document.getElementById('card-carousel');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const filterButtonsContainer = document.getElementById('filter-buttons');
+        const cardCounter = document.getElementById('card-counter');
+        const inputForm = document.getElementById('input-form');
 
-      <div id="initial-state" class="results-container text-center p-10 bg-white rounded-2xl border border-slate-200/80">
-        <svg class="mx-auto h-12 w-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197M10.5 6a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"/>
-        </svg>
-        <h3 class="mt-4 text-lg font-medium text-slate-800">Esperando tu consulta</h3>
-        <p class="mt-1 text-sm text-slate-500">Los resultados aparecerán aquí.</p>
-      </div>
+        // --- 3. Funciones de Utilidad ---
 
-      <div id="navigation-controls" class="hidden justify-between items-center mt-4 px-2">
-        <button id="prev-btn" class="btn-arrow p-2 rounded-full bg-white shadow-md hover:bg-slate-100 transition-all disabled:opacity-50">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-        </button>
-        <div class="flex items-center gap-4">
-          <div id="card-counter" class="text-sm font-semibold text-slate-600 tracking-wider"></div>
-          <button id="clear-history-btn" title="Limpiar historial" class="text-slate-400 hover:text-red-500 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"/></svg>
-          </button>
-        </div>
-        <button id="next-btn" class="btn-arrow p-2 rounded-full bg-white shadow-md hover:bg-slate-100 transition-all disabled:opacity-50">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        </button>
-      </div>
-    </section>
-  </main>
+        // Saneamiento Anti-URL (Mantener como seguridad, aunque el backend también lo hace)
+        const urlLike = /(https?:\/\/|www\.)[^\s)]+/gi;
+        const stripUrls = (s) => typeof s === 'string' ? s.replace(urlLike, '').replace(/\(\s*\)/g, '').trim() : s;
+        const isUrlish = (s) => typeof s === 'string' && /(https?:\/\/|www\.)/i.test(s);
+        
+        const show = (el) => { if (el) el.style.display = 'block'; };
+        const hide = (el) => { if (el) el.style.display = 'none'; };
+        const disable = (el) => { if (el) el.disabled = true; };
+        const enable = (el) => { if (el) el.disabled = false; };
+        
+        const saveHistory = () => {
+            localStorage.setItem('mythCards', JSON.stringify(allCards));
+        };
 
-  <script>
-    // ---------- ELEMENTOS ----------
-    const mythForm = document.getElementById('myth-form');
-    const mythInput = document.getElementById('myth-input');
-    const micBtn = document.getElementById('mic-btn');
-    const suggestionsEl = document.getElementById('suggestions');
+        // --- 4. Interacción con el Backend (Corrección clave) ---
+        
+        async function fetchApiResponse(userQuery) {
+            show(loader);
+            disable(submitBtn);
+            try {
+                const res = await fetch('/.netlify/functions/verifyMyth', {
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userQuery })
+                });
 
-    const loader = document.getElementById('loader');
-    const carouselTrack = document.getElementById('carousel-track');
-    const navigationControls = document.getElementById('navigation-controls');
-    const prevBtn = document.getElementById('prev-btn');
-    const nextBtn = document.getElementById('next-btn');
-    const cardCounter = document.getElementById('card-counter');
-    const clearHistoryBtn = document.getElementById('clear-history-btn');
-    const filterContainer = document.getElementById('filter-container');
-    const initialState = document.getElementById('initial-state');
+                // Si la respuesta no es OK (ej. 404, 500), leemos el texto para el mensaje de error.
+                if (!res.ok) {
+                    const text = await res.text(); 
+                    throw new Error(`Error en el servidor (${res.status}): ${text}`);
+                }
+                
+                // CORRECCIÓN CLAVE: Esperar directamente el objeto-tarjeta limpio que devuelve el backend.
+                const cardData = await res.json(); 
 
-    // ---------- ESTADO ----------
-    let allCards = [];
-    let filteredCards = [];
-    let currentIndex = 0;
-    let currentFilter = 'todos';
-    const LS_KEY = 'mmx_mitobot_cards_v1';
+                // Si el backend devolvió un 200 pero el objeto contiene un error explícito (ej. 502 por mal JSON)
+                if (cardData && cardData.error) {
+                    throw new Error(cardData.error); 
+                }
 
-    // ---------- UTILES ----------
-    const show = el => el && el.classList.remove('hidden');
-    const hide = el => el && el.classList.add('hidden');
-    const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
-    const uniq = arr => [...new Set(arr)];
-    const urlLike = /(https?:\/\/|www\.)[^\s)]+/gi;
-    const stripUrls = s => typeof s === 'string' ? s.replace(urlLike,'').replace(/\(\s*\)/g,'').trim() : s;
-    const isUrlish = s => typeof s === 'string' && /(https?:\/\/|www\.)/i.test(s);
-
-    // ---------- API ----------
-    async function fetchApiResponse(userQuery) {
-      show(loader);
-      try {
-        const res = await fetch('/.netlify/functions/verifyMyth', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userQuery })
-        });
-        if (!res.ok) {
-          const t = await res.text(); throw new Error(`Error en el servidor: ${res.status} - ${t}`);
+                // Devolver el objeto de la tarjeta limpio
+                return cardData; 
+            } finally {
+                hide(loader);
+                enable(submitBtn);
+            }
         }
-        const data = await res.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) throw new Error('Respuesta de la API inválida o vacía.');
-        return JSON.parse(text);
-      } finally {
-        hide(loader);
-      }
-    }
+        
+        // --- 5. Manejo Principal de la Consulta ---
 
-    // ---------- VALIDACIÓN ----------
-    function isCardDataValid(d){
-      return d && typeof d.myth==='string' && typeof d.isTrue==='boolean'
-        && typeof d.explanation_simple==='string' && typeof d.explanation_expert==='string'
-        && typeof d.evidenceLevel==='string';
-    }
+        async function handleFormSubmit(query) {
+            if (!query) return;
+            // Limpieza inicial de la query
+            const sanitizedQuery = stripUrls(query);
+            
+            try {
+                const card = await fetchApiResponse(sanitizedQuery); // 'card' es ahora el objeto JSON limpio.
 
-    // ---------- UI: Evidenciómetro y evidencia ----------
-    function createEvidenciometroHTML(level){
-      const L = (level || '').toLowerCase();
-      const filled = L.includes('alta') ? 3 : L.includes('moderada') ? 2 : 1;
-      const label  = filled === 3 ? 'Alta' : filled === 2 ? 'Moderada' : 'Baja';
-      const dot    = filled === 3 ? 'bg-green-500' : filled === 2 ? 'bg-amber-400' : 'bg-rose-400';
-      const barOn  = 'bg-slate-600/70';
-      const barOff = 'bg-slate-200';
+                // Saneamiento extra por si llegara alguna URL (redundante, pero robusto)
+                card.myth = stripUrls(card.myth || sanitizedQuery);
+                card.explanation_simple = stripUrls(card.explanation_simple || 'No se pudo generar una respuesta completa y fiable.');
+                card.explanation_expert = stripUrls(card.explanation_expert || 'La respuesta de la IA no pasó el control de estructura JSON.');
+                card.category = stripUrls(card.category || 'Error');
+                card.sources = Array.isArray(card.sources) ? card.sources.filter(s => !isUrlish(s)).map(stripUrls) : [];
+                card.relatedMyths = Array.isArray(card.relatedMyths) ? card.relatedMyths.filter(s => !isUrlish(s)).map(stripUrls) : [];
+                
+                allCards.push(card); 
 
-      return `
-        <div class="flex items-center gap-3">
-          <span class="inline-block h-3 w-3 rounded-full ${dot}"></span>
-          <div class="flex items-center gap-1">
-            <span class="inline-block h-4 w-3 rounded-md ${filled>=1?barOn:barOff}"></span>
-            <span class="inline-block h-4 w-3 rounded-md ${filled>=2?barOn:barOff}"></span>
-            <span class="inline-block h-4 w-3 rounded-md ${filled>=3?barOn:barOff}"></span>
-          </div>
-          <span class="ml-1 text-sm font-semibold text-slate-700">${label}</span>
-        </div>
-      `;
-    }
-
-    function asEvidenceTypeList(arr){
-      if (!Array.isArray(arr) || !arr.length) return '';
-      const safe = arr.filter(s => !isUrlish(s)).map(stripUrls).filter(Boolean);
-      if (!safe.length) return '';
-      return `<ul class="text-sm text-slate-600 list-disc list-inside space-y-1">
-        ${safe.map(s => `<li>${s}</li>`).join('')}
-      </ul>`;
-    }
-
-    // ---------- RENDER ----------
-    function createCardHTML(card, index){
-      const c = {
-        myth: stripUrls(card.myth || ''),
-        isTrue: !!card.isTrue,
-        explanation_simple: stripUrls(card.explanation_simple || ''),
-        explanation_expert: stripUrls(card.explanation_expert || ''),
-        evidenceLevel: stripUrls(card.evidenceLevel || 'Baja'),
-        sources: Array.isArray(card.sources) ? card.sources.filter(s=>!isUrlish(s)).map(stripUrls) : [],
-        category: stripUrls(card.category || ''),
-        relatedMyths: Array.isArray(card.relatedMyths) ? card.relatedMyths.filter(s=>!isUrlish(s)).map(stripUrls) : []
-      };
-
-      return `
-      <div class="carousel-item w-full p-6 md:p-8">
-        <div class="card h-full flex flex-col justify-between">
-          <div>
-            <div class="flex justify-between items-start">
-              <div class="flex-1 pr-4">
-                <p class="text-sm font-semibold text-slate-500 mb-2">Afirmación:</p>
-                <h2 class="text-xl font-bold text-slate-800 mb-6 leading-tight">"${c.myth || '—'}"</h2>
-              </div>
-              <button class="share-btn flex-shrink-0 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full p-2" onclick="shareResult(${index})" title="Copiar JSON">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/></svg>
-              </button>
-            </div>
-
-            <div class="flex items-center text-base font-bold py-2 px-3 rounded-lg ${c.isTrue ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100"} mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="${c.isTrue ? 'M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z' : 'M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z'}" clip-rule="evenodd"/>
-              </svg>
-              <span class="tracking-wider">${c.isTrue ? "VERDADERO" : "FALSO"}</span>
-            </div>
-
-            <div class="flex items-center justify-end mb-2 text-xs font-semibold">
-              <div class="flex items-center p-1 rounded-full bg-slate-100">
-                <button class="difficulty-toggle active px-3 py-1 rounded-full" data-target="simple">Para todos</button>
-                <button class="difficulty-toggle px-3 py-1 rounded-full" data-target="expert">Experto</button>
-              </div>
-            </div>
-
-            <div class="explanation-container">
-              <p class="explanation-simple text-slate-600 leading-relaxed text-base">${c.explanation_simple || '—'}</p>
-              <p class="explanation-expert text-slate-600 leading-relaxed text-base hidden">${c.explanation_expert || '—'}</p>
-            </div>
-
-            <div class="mt-8 pt-4 border-t border-slate-200 space-y-4">
-              <div>
-                <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">EVIDENCIÓMETRO:</p>
-                ${createEvidenciometroHTML(c.evidenceLevel)}
-              </div>
-
-              ${c.sources && c.sources.length ? `
-                <div class="mt-4">
-                  <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">BASADO EN:</p>
-                  ${asEvidenceTypeList(c.sources)}
-                </div>` : ''}
-
-              ${c.relatedMyths && c.relatedMyths.length ? `
-                <div class="mt-4">
-                  <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">MITOS RELACIONADOS:</p>
-                  <div class="flex flex-col gap-2">
-                    ${c.relatedMyths.map(m => `<button class="related-myth-btn text-sm text-left text-slate-700 p-2 rounded-md" data-myth="${m}">- ${m}</button>`).join('')}
-                  </div>
-                </div>` : ''}
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }
-
-    function renderCarousel(){
-      const count = filteredCards.length;
-      carouselTrack.innerHTML = count ? filteredCards.map((c,i)=>createCardHTML(c,i)).join('') : '';
-      if (count) {
-        hide(initialState); show(navigationControls);
-        currentIndex = clamp(currentIndex, 0, count - 1);
-        carouselTrack.style.transform = `translateX(-${currentIndex * 100}%)`;
-      } else { show(initialState); hide(navigationControls); }
-    }
-
-    function updateCardCounter(){
-      const total = filteredCards.length;
-      cardCounter.textContent = total ? `${currentIndex + 1} / ${total}` : '';
-      prevBtn.disabled = currentIndex <= 0;
-      nextBtn.disabled = currentIndex >= total - 1;
-    }
-
-    function setupPagination(){
-      prevBtn.onclick = () => { currentIndex = clamp(currentIndex - 1, 0, filteredCards.length - 1); renderCarousel(); updateCardCounter(); };
-      nextBtn.onclick = () => { currentIndex = clamp(currentIndex + 1, 0, filteredCards.length - 1); renderCarousel(); updateCardCounter(); };
-      clearHistoryBtn.onclick = () => {
-        allCards = []; filteredCards = []; currentIndex = 0;
-        localStorage.removeItem(LS_KEY);
-        renderCarousel(); updateCardCounter(); renderFilterButtons();
-      };
-    }
-
-    // ---------- FILTROS ----------
-    function renderFilterButtons(){
-      const cats = uniq(allCards.map(c => c.category).filter(Boolean));
-      const all = ['todos', ...cats];
-      filterContainer.innerHTML = `
-        <div class="flex flex-wrap gap-2">
-          ${all.map(cat=>{
-            const active = (currentFilter === cat) ? 'active' : '';
-            const label = cat.charAt(0).toUpperCase() + cat.slice(1);
-            return `<button class="filter-btn px-3 py-1 rounded-full border border-slate-200 ${active}" data-cat="${cat}">${label}</button>`;
-          }).join('')}
-        </div>
-      `;
-      filterContainer.querySelectorAll('.filter-btn').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          currentFilter = btn.dataset.cat;
-          filterContainer.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-          btn.classList.add('active');
-          applyFilter(); currentIndex = 0; renderCarousel(); updateCardCounter();
-        });
-      });
-    }
-
-    function applyFilter(){
-      filteredCards = (currentFilter === 'todos')
-        ? [...allCards]
-        : allCards.filter(c => (c.category||'').toLowerCase() === currentFilter.toLowerCase());
-    }
-
-    function saveHistory(){ try { localStorage.setItem(LS_KEY, JSON.stringify(allCards)); } catch {} }
-    function loadHistory(){
-      try { allCards = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { allCards = []; }
-      currentFilter = 'todos';
-      renderFilterButtons(); applyFilter(); renderCarousel(); updateCardCounter(); setupPagination();
-    }
-
-    // ---------- INTERACCIÓN ----------
-    async function handleFormSubmit(query){
-      if (!query) return;
-      try {
-        const card = await fetchApiResponse(query);
-        if (!isCardDataValid(card)) {
-          allCards.push({
-            myth: stripUrls(query), isTrue:false,
-            explanation_simple:'No se pudo generar una respuesta completa y fiable.',
-            explanation_expert:'La respuesta de la IA no pasó el control de estructura JSON.',
-            evidenceLevel:'Baja', sources:[], category:'Error', relatedMyths:[]
-          });
-        } else {
-          // Saneado extra por si llegara alguna URL
-          card.myth = stripUrls(card.myth);
-          card.explanation_simple = stripUrls(card.explanation_simple);
-          card.explanation_expert = stripUrls(card.explanation_expert);
-          card.category = stripUrls(card.category);
-          card.sources = Array.isArray(card.sources) ? card.sources.filter(s=>!isUrlish(s)).map(stripUrls) : [];
-          card.relatedMyths = Array.isArray(card.relatedMyths) ? card.relatedMyths.filter(s=>!isUrlish(s)).map(stripUrls) : [];
-          allCards.push(card);
+            } catch (err) {
+                console.error("Error capturado en el frontend:", err);
+                // Si falla la API o el parseo del backend, guardamos una tarjeta de error
+                allCards.push({
+                    myth: sanitizedQuery, 
+                    isTrue: false,
+                    explanation_simple: 'Error al consultar el verificador.',
+                    explanation_expert: `Mensaje de Error: ${String(err?.message || err)}`,
+                    evidenceLevel: 'Baja', 
+                    sources: [], 
+                    category: 'Error', 
+                    relatedMyths: []
+                });
+            } finally {
+                // Actualizar UI después de cualquier intento (éxito o error)
+                currentFilter = 'todos';
+                currentIndex = allCards.length - 1;
+                saveHistory(); 
+                renderFilterButtons(); 
+                applyFilter(); 
+                renderCarousel(); 
+                updateCardCounter();
+                mythInput.value = '';
+            }
         }
-        currentFilter = 'todos';
-        currentIndex = allCards.length - 1;
-        saveHistory(); renderFilterButtons(); applyFilter(); renderCarousel(); updateCardCounter();
-        mythInput.value = '';
-      } catch (err) {
-        allCards.push({
-          myth: stripUrls(query), isTrue:false,
-          explanation_simple:'Error al consultar el verificador.',
-          explanation_expert:String(err?.message || err),
-          evidenceLevel:'Baja', sources:[], category:'Error', relatedMyths:[]
+
+        // --- 6. Renderizado de la Tarjeta ---
+
+        const getStatusText = (card) => {
+            if (card.category === 'Error') return 'Error';
+            return card.isTrue ? 'VERDADERO' : 'FALSO';
+        };
+
+        const renderCard = (card) => {
+            const statusText = getStatusText(card);
+            const statusClass = statusText.toLowerCase();
+
+            const sourcesList = card.sources.map(s => `<li>${s}</li>`).join('');
+            const relatedList = card.relatedMyths.map(m => `<li>${m}</li>`).join('');
+
+            return `
+                <div class="card active">
+                    <div class="card-header">
+                        <h2>${card.myth}</h2>
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="card-body">
+                        <h3>✅ Explicación Simple</h3>
+                        <p>${card.explanation_simple}</p>
+
+                        <h3>🔬 Explicación Experta</h3>
+                        <p>${card.explanation_expert}</p>
+
+                        <p class="evidence-level">Nivel de Evidencia: ${card.evidenceLevel} | Categoría: ${card.category}</p>
+
+                        <h3>📚 Fuentes (Tipos)</h3>
+                        <ul>${sourcesList || '<li>No hay tipos de fuentes específicos.</li>'}</ul>
+
+                        <h3>🔗 Mitos Relacionados</h3>
+                        <ul>${relatedList || '<li>No hay mitos relacionados.</li>'}</ul>
+                    </div>
+                </div>
+            `;
+        };
+        
+        // --- 7. Lógica de Carrusel y Filtro ---
+
+        const updateCardCounter = () => {
+            cardCounter.textContent = `${currentIndex + 1}/${filteredCards.length}`;
+            disable(prevBtn);
+            disable(nextBtn);
+            if (filteredCards.length > 0) {
+                if (currentIndex > 0) enable(prevBtn);
+                if (currentIndex < filteredCards.length - 1) enable(nextBtn);
+            }
+        };
+
+        const renderCarousel = () => {
+            cardCarousel.innerHTML = '';
+            
+            if (filteredCards.length === 0) {
+                cardCarousel.innerHTML = `
+                    <div class="card active">
+                        <p style="text-align: center; font-size: 1.1em; color: var(--color-secondary);">
+                            ${allCards.length === 0 
+                                ? 'Empieza escribiendo un mito arriba para verificarlo.' 
+                                : `No hay resultados para el filtro: **${currentFilter}**.`}
+                        </p>
+                    </div>
+                `;
+                currentIndex = -1;
+                updateCardCounter();
+                return;
+            }
+
+            const card = filteredCards[currentIndex];
+            if (card) {
+                cardCarousel.innerHTML = renderCard(card);
+            }
+            updateCardCounter();
+        };
+
+        const applyFilter = (filter = currentFilter) => {
+            currentFilter = filter;
+            if (filter === 'todos') {
+                filteredCards = allCards;
+            } else if (filter === 'error') {
+                filteredCards = allCards.filter(c => c.category === 'Error');
+            } else {
+                const isTrue = filter === 'true';
+                // Filtra por isTrue y excluye explícitamente los errores
+                filteredCards = allCards.filter(c => c.isTrue === isTrue && c.category !== 'Error');
+            }
+            // Mover el índice al último elemento del nuevo filtro
+            currentIndex = filteredCards.length > 0 ? filteredCards.length - 1 : -1;
+            renderCarousel();
+            renderFilterButtons();
+        };
+
+        const renderFilterButtons = () => {
+            filterButtonsContainer.querySelectorAll('button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.filter === currentFilter) {
+                    btn.classList.add('active');
+                }
+            });
+        };
+
+        // --- 8. Event Listeners ---
+
+        inputForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleFormSubmit(mythInput.value.trim());
         });
-        currentFilter = 'todos'; currentIndex = allCards.length - 1;
-        saveHistory(); renderFilterButtons(); applyFilter(); renderCarousel(); updateCardCounter();
-      }
-    }
 
-    function handleCardClick(e){
-      const btn = e.target.closest('.difficulty-toggle');
-      if (btn){
-        const card = e.target.closest('.carousel-item'); if (!card) return;
-        card.querySelectorAll('.difficulty-toggle').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        const showExpert = (btn.dataset.target === 'expert');
-        const simple = card.querySelector('.explanation-simple');
-        const expert = card.querySelector('.explanation-expert');
-        if (showExpert){ simple.classList.add('hidden'); expert.classList.remove('hidden'); }
-        else { expert.classList.add('hidden'); simple.classList.remove('hidden'); }
-        return;
-      }
-      const rel = e.target.closest('.related-myth-btn');
-      if (rel){ const q = rel.dataset.myth || rel.textContent.replace(/^- /,'').trim(); if (q) handleFormSubmit(q); }
-    }
+        prevBtn.addEventListener('click', () => {
+            if (currentIndex > 0) {
+                currentIndex--;
+                renderCarousel();
+            }
+        });
 
-    async function shareResult(index){
-      const card = filteredCards[index]; if (!card) return;
-      const json = JSON.stringify(card, null, 2);
-      try {
-        await navigator.clipboard.writeText(json);
-        const btn = document.querySelectorAll('.share-btn')[index];
-        if (btn){ btn.classList.add('copied'); setTimeout(()=>btn.classList.remove('copied'), 900); }
-      } catch {}
-    }
+        nextBtn.addEventListener('click', () => {
+            if (currentIndex < filteredCards.length - 1) {
+                currentIndex++;
+                renderCarousel();
+            }
+        });
 
-    // ---------- EVENTOS ----------
-    mythForm.addEventListener('submit', (e)=>{ e.preventDefault(); handleFormSubmit(mythInput.value.trim()); });
-    suggestionsEl.querySelectorAll('.suggestion-btn').forEach(b=> b.addEventListener('click', ()=>handleFormSubmit(b.textContent.trim())));
-
-    // Micrófono (Web Speech API)
-    (function setupMic(){
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) return;
-      const rec = new SR();
-      rec.lang = 'es-ES'; rec.interimResults = false; rec.maxAlternatives = 1;
-      micBtn.addEventListener('click', ()=>{
-        if (micBtn.classList.contains('is-listening')) { rec.stop(); return; }
-        micBtn.classList.add('is-listening'); rec.start();
-      });
-      rec.onresult = (e)=>{ const tx = e.results[0][0].transcript || ''; if (tx) { mythInput.value = tx; handleFormSubmit(tx); } };
-      rec.onend = ()=> micBtn.classList.remove('is-listening');
-      rec.onerror = ()=> micBtn.classList.remove('is-listening');
-    })();
-
-    document.addEventListener('DOMContentLoaded', loadHistory);
-    window.handleCardClick = handleCardClick;
-    window.shareResult = shareResult;
-  </script>
+        filterButtonsContainer.addEventListener('click', (e) => {
+            const filter = e.target.dataset.filter;
+            if (filter) {
+                applyFilter(filter);
+            }
+        });
+        
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            applyFilter('todos');
+        });
+    </script>
 </body>
 </html>
