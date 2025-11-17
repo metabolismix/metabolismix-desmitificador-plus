@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Mitobot MMX+</title>
+  <title>Mito-Bot</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,7 +48,7 @@
         </svg>
       </div>
       <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent mb-2">
-        Mitobot MMX
+        Mito-Bot
       </h1>
       <h2 class="text-2xl font-bold text-slate-700 tracking-tight">Desmitificador Científico</h2>
       <p class="text-slate-500 mt-3 max-w-xs">Respuestas claras y directas basadas en la evidencia.</p>
@@ -187,12 +187,12 @@
         }
       }
 
-      // 4) Fallback sin romper la UI
+      // 4) Fallback sin romper la UI (mensaje no técnico)
       return {
         myth: stripUrls(userQuery || ''),
         isTrue: false,
-        explanation_simple: 'No he podido estructurar la respuesta. Prueba a formular la afirmación de forma más concreta.',
-        explanation_expert: 'Salida no JSON del modelo; normalizada en cliente.',
+        explanation_simple: 'No he podido estructurar bien la respuesta. Prueba a formular la afirmación de forma más concreta.',
+        explanation_expert: 'La respuesta técnica no se ha podido organizar del todo bien; se muestra un resumen conservador basado en la evidencia disponible.',
         evidenceLevel: 'Baja',
         sources: [],
         category: '',
@@ -208,10 +208,30 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userQuery })
         });
+
+        const rawText = await res.text();
+
+        // Si la función devuelve error estructurado pero con status 200, lo gestionamos aquí
         if (!res.ok) {
-          const t = await res.text(); throw new Error(`Error en el servidor: ${res.status} - ${t}`);
+          // Intentamos detectar explícitamente casos de sobrecarga por si algún día pasan
+          if (rawText && /model is overloaded/i.test(rawText)) {
+            // Fallback suave para no romper la experiencia
+            return {
+              myth: stripUrls(userQuery || ''),
+              isTrue: false,
+              explanation_simple: 'Ahora mismo el modelo de IA está saturado. Inténtalo de nuevo en unos minutos.',
+              explanation_expert: 'La llamada a la API ha devuelto un error de saturación (“model overloaded”).',
+              evidenceLevel: 'Baja',
+              sources: [],
+              category: 'Saturación',
+              relatedMyths: []
+            };
+          }
+          throw new Error(`Error en el servidor: ${res.status} - ${rawText}`);
         }
-        const data = await res.json();
+
+        // Si todo va bien, parseamos como JSON
+        const data = rawText ? JSON.parse(rawText) : {};
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) {
           // Incluso si viene vacío, devolvemos fallback; no rompemos UX
@@ -235,19 +255,35 @@
       const L = (level || '').toLowerCase();
       const filled = L.includes('alta') ? 3 : L.includes('moderada') ? 2 : 1;
       const label  = filled === 3 ? 'Alta' : filled === 2 ? 'Moderada' : 'Baja';
-      const dot    = filled === 3 ? 'bg-green-500' : filled === 2 ? 'bg-amber-400' : 'bg-rose-400';
-      const barOn  = 'bg-slate-600/70';
-      const barOff = 'bg-slate-200';
+
+      const colorClass =
+        filled === 3 ? 'bg-emerald-500' :
+        filled === 2 ? 'bg-amber-400' :
+                        'bg-rose-500';
+
+      const labelColor =
+        filled === 3 ? 'text-emerald-700' :
+        filled === 2 ? 'text-amber-700' :
+                        'text-rose-700';
+
+      const badgeBg =
+        filled === 3 ? 'bg-emerald-50' :
+        filled === 2 ? 'bg-amber-50' :
+                        'bg-rose-50';
+
+      const dots = [1,2,3].map(i => {
+        const active = i <= filled;
+        return `<span class="h-3.5 w-3.5 rounded-full border ${active ? `${colorClass} border-transparent` : 'bg-slate-200 border-slate-300'} transition-all"></span>`;
+      }).join('');
 
       return `
-        <div class="flex items-center gap-3">
-          <span class="inline-block h-3 w-3 rounded-full ${dot}"></span>
-          <div class="flex items-center gap-1">
-            <span class="inline-block h-4 w-3 rounded-md ${filled>=1?barOn:barOff}"></span>
-            <span class="inline-block h-4 w-3 rounded-md ${filled>=2?barOn:barOff}"></span>
-            <span class="inline-block h-4 w-3 rounded-md ${filled>=3?barOn:barOff}"></span>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-50">
+            <div class="flex items-center gap-1">
+              ${dots}
+            </div>
           </div>
-          <span class="ml-1 text-sm font-semibold text-slate-700">${label}</span>
+          <span class="ml-3 text-xs font-semibold px-2 py-1 rounded-full ${badgeBg} ${labelColor} uppercase tracking-wide">${label}</span>
         </div>
       `;
     }
