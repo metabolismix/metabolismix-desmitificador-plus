@@ -95,20 +95,66 @@ NO incluyas URLs ni DOIs en ningún campo.
       // Nota: no añadimos safetySettings para evitar incompatibilidades de campos.
     };
 
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    // ---------- Llamada con reintentos ante sobrecarga ----------
+    let res;
+    let result;
+    let attempt = 0;
+    const maxRetries = 2;
 
-    const result = await res.json().catch(() => ({}));
+    while (true) {
+      res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-    if (!res.ok) {
-      const msg = result?.error?.message || JSON.stringify(result);
+      result = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        break; // salimos del bucle: éxito
+      }
+
+      const msg = result?.error?.message || '';
+      const isOverloaded =
+        res.status === 503 ||
+        /model is overloaded/i.test(msg) ||
+        /overloaded/i.test(msg);
+
+      if (isOverloaded && attempt < maxRetries) {
+        const delayMs = 1000 * Math.pow(2, attempt); // 1s, 2s...
+        await new Promise(r => setTimeout(r, delayMs));
+        attempt++;
+        continue; // reintentar
+      }
+
+      // Si sigue sobrecargado tras reintentos, devolvemos fallback 200, no 503
+      if (isOverloaded) {
+        const fallback = {
+          myth: userQuery,
+          isTrue: false,
+          explanation_simple: 'Ahora mismo el modelo de IA está saturado. No puedo verificar bien esta afirmación; vuelve a intentarlo en unos minutos.',
+          explanation_expert: `La API de Google devolvió un error de saturación tras varios intentos (status ${res.status}). Se ofrece una respuesta conservadora con evidencia considerada baja.`,
+          evidenceLevel: 'Baja',
+          sources: [],
+          category: 'Saturación',
+          relatedMyths: []
+        };
+        const safeResult = {
+          candidates: [{ content: { parts: [{ text: JSON.stringify(fallback) }] } }]
+        };
+        return {
+          statusCode: 200,
+          headers: { ...cors, 'Content-Type': 'application/json' },
+          body: JSON.stringify(safeResult)
+        };
+      }
+
+      // Otros errores: los devolvemos como error claro
+      const errorMsg = msg || JSON.stringify(result);
       return {
         statusCode: res.status,
         headers: { ...cors, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: `Google API Error: ${msg}` })
+        body: JSON.stringify({ error: `Google API Error: ${errorMsg}` })
       };
     }
 
@@ -188,8 +234,8 @@ NO incluyas URLs ni DOIs en ningún campo.
     const obj = parsed && typeof parsed === 'object' ? parsed : {
       myth: userQuery,
       isTrue: false,
-      explanation_simple: 'No he podido estructurar bien la respuesta. En resumen: no hay pruebas sólidas para afirmarlo con seguridad.',
-      explanation_expert: 'Salida no JSON o truncada; respuesta normalizada en servidor.',
+      explanation_simple: 'No he podido estructurar bien la respuesta. En resumen, no hay pruebas sólidas para afirmarlo con seguridad.',
+      explanation_expert: 'La respuesta del modelo no se pudo estructurar completamente; se ofrece una síntesis conservadora basada en la evidencia disponible.',
       evidenceLevel: 'Baja',
       sources: [],
       category: '',
@@ -221,7 +267,7 @@ NO incluyas URLs ni DOIs en ningún campo.
       headers: {
         ...cors,
         'Content-Type': 'application/json',
-        'x-mmx-func-version': 'v7-maxsafe-2025-10-23'
+        'x-mmx-func-version': 'v8-maxsafe-2025-11-17'
       },
       body: JSON.stringify(result)
     };
