@@ -6,6 +6,14 @@ exports.handler = async function (event, context) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
+  // Texto común de fallback con enlace clicable
+  const CONTACT_HTML =
+    'Desde MMX consideramos que las respuestas a algunos mitos entrañan demasiada complejidad. ' +
+    'Si quieres que respondamos al mito, contáctanos a ' +
+    '<a href="https://metabolismix.com/contacto/" target="_blank" rel="noopener noreferrer">' +
+    'https://metabolismix.com/contacto/' +
+    '</a>.';
+
   // ---------- CORS / MÉTODO ----------
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: cors, body: '' };
@@ -45,7 +53,7 @@ exports.handler = async function (event, context) {
       headers: {
         ...cors,
         'Content-Type': 'application/json',
-        'x-mmx-func-version': 'v10-all-safe-2025-11-17'
+        'x-mmx-func-version': 'v11-mmx-link-2025-11-18'
       },
       body: JSON.stringify(result)
     };
@@ -229,10 +237,8 @@ NO incluyas URLs ni DOIs en ningún campo.
           return makeCardResponse({
             myth: userQuery,
             isTrue: false,
-            explanation_simple:
-              'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
-            explanation_expert:
-              'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
+            explanation_simple: CONTACT_HTML,
+            explanation_expert: CONTACT_HTML,
             evidenceLevel: 'Baja',
             sources: [],
             category: 'Tiempo de espera',
@@ -244,10 +250,8 @@ NO incluyas URLs ni DOIs en ningún campo.
         return makeCardResponse({
           myth: userQuery,
           isTrue: false,
-          explanation_simple:
-            'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
-          explanation_expert:
-            'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
+          explanation_simple: CONTACT_HTML,
+          explanation_expert: CONTACT_HTML,
           evidenceLevel: 'Baja',
           sources: [],
           category: 'Conectividad',
@@ -300,10 +304,8 @@ NO incluyas URLs ni DOIs en ningún campo.
         return makeCardResponse({
           myth: userQuery,
           isTrue: false,
-          explanation_simple:
-            'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
-          explanation_expert:
-            'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
+          explanation_simple: CONTACT_HTML,
+          explanation_expert: CONTACT_HTML,
           evidenceLevel: 'Baja',
           sources: [],
           category: 'Saturación',
@@ -386,10 +388,8 @@ NO incluyas URLs ni DOIs en ningún campo.
         : {
             myth: userQuery,
             isTrue: false,
-            explanation_simple:
-              'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
-            explanation_expert:
-              'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
+            explanation_simple: CONTACT_HTML,
+            explanation_expert: CONTACT_HTML,
             evidenceLevel: 'Baja',
             sources: [],
             category: '',
@@ -399,8 +399,9 @@ NO incluyas URLs ni DOIs en ningún campo.
     const clean = {
       myth: stripUrls(obj.myth || userQuery),
       isTrue: !!obj.isTrue,
-      explanation_simple: stripUrls(obj.explanation_simple || ''),
-      explanation_expert: stripUrls(obj.explanation_expert || ''),
+      // Dejamos las explicaciones intactas para conservar el enlace HTML cuando lo haya
+      explanation_simple: obj.explanation_simple || '',
+      explanation_expert: obj.explanation_expert || '',
       evidenceLevel: stripUrls(obj.evidenceLevel || 'Baja'),
       sources: Array.isArray(obj.sources)
         ? obj.sources.filter((s) => !isUrlish(s)).map(stripUrls)
@@ -424,8 +425,7 @@ NO incluyas URLs ni DOIs en ningún campo.
       evidenceLevel: 'Baja',
       sources: [],
       category: 'Error interno',
-      relatedMyths: [],
+      relatedMyths: []
     });
   }
 };
-
