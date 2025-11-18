@@ -230,9 +230,9 @@ NO incluyas URLs ni DOIs en ningún campo.
             myth: userQuery,
             isTrue: false,
             explanation_simple:
-              'La respuesta ha tardado demasiado. Ahora mismo no puedo revisar bien esta afirmación; vuelve a intentarlo en unos minutos.',
+              'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
             explanation_expert:
-              'La llamada a la API de IA excedió el tiempo máximo configurado en el servidor. Se ofrece una respuesta conservadora con evidencia considerada baja.',
+              'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
             evidenceLevel: 'Baja',
             sources: [],
             category: 'Tiempo de espera',
@@ -245,11 +245,9 @@ NO incluyas URLs ni DOIs en ningún campo.
           myth: userQuery,
           isTrue: false,
           explanation_simple:
-            'Ha habido un problema de conexión con el servicio de IA. No puedo verificar esta afirmación en este momento.',
+            'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
           explanation_expert:
-            `Se produjo un error de red al llamar a la API de Google: ${err?.message || String(
-              err
-            )}. Es probable que sea un problema transitorio de conectividad.`,
+            'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
           evidenceLevel: 'Baja',
           sources: [],
           category: 'Conectividad',
@@ -303,9 +301,9 @@ NO incluyas URLs ni DOIs en ningún campo.
           myth: userQuery,
           isTrue: false,
           explanation_simple:
-            'Ahora mismo el modelo de IA está saturado o respondiendo con retraso. No puedo verificar bien esta afirmación; vuelve a intentarlo en unos minutos.',
+            'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
           explanation_expert:
-            `La API de Google devolvió errores de saturación o tiempo de espera (código ${code}). Tras varios intentos, se ofrece una respuesta conservadora con evidencia considerada baja.`,
+            'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
           evidenceLevel: 'Baja',
           sources: [],
           category: 'Saturación',
@@ -319,9 +317,9 @@ NO incluyas URLs ni DOIs en ningún campo.
           myth: userQuery,
           isTrue: false,
           explanation_simple:
-            'No puedo valorar esta afirmación tal como está formulada porque entra en una zona restringida por las políticas del modelo.',
+            'No puedo valorar esta afirmación tal como está formulada porque entra en una zona restringida por las políticas de MMX.',
           explanation_expert:
-            `La petición fue bloqueada por las políticas de seguridad o contenido de la API de Google (código ${code}). Es probable que la afirmación implique temas sensibles o demasiado específicos.`,
+            `La petición fue bloqueada por las políticas de seguridad o contenido de la API y de MMX (código ${code}). Es probable que la afirmación implique temas sensibles o demasiado específicos.`,
           evidenceLevel: 'Baja',
           sources: [],
           category: 'Políticas',
@@ -335,9 +333,9 @@ NO incluyas URLs ni DOIs en ningún campo.
           myth: userQuery,
           isTrue: false,
           explanation_simple:
-            'Ahora mismo el verificador no tiene permisos correctos para acceder al modelo de IA.',
+            'Ahora mismo el verificador no tiene permisos correctos para acceder al modelo de IA. Contáctanos si el error persiste.',
           explanation_expert:
-            `La API de Google devolvió un error de autenticación o permisos (código ${code}). Es necesario revisar la clave de API o los permisos del proyecto.`,
+            `La API devolvió un error de autenticación o permisos (código ${code}). Es necesario revisar la clave de API o los permisos del proyecto.`,
           evidenceLevel: 'Baja',
           sources: [],
           category: 'Credenciales',
@@ -350,9 +348,9 @@ NO incluyas URLs ni DOIs en ningún campo.
         myth: userQuery,
         isTrue: false,
         explanation_simple:
-          'Ha ocurrido un problema inesperado al consultar el modelo de IA. No puedo revisar esta afirmación en este momento.',
+          'Ha ocurrido un problema inesperado al consultar el modelo de IA. No puedo revisar esta afirmación en este momento. Contáctanos si el error persiste.',
         explanation_expert:
-          `La API de Google devolvió un error no esperado (status ${res.status}, código ${code}). Mensaje: ${msg || 'sin detalle proporcionado.'}`,
+          `La API devolvió un error no esperado (status ${res.status}, código ${code}). Mensaje: ${msg || 'sin detalle proporcionado.'}`,
         evidenceLevel: 'Baja',
         sources: [],
         category: 'Error de servicio',
@@ -389,9 +387,9 @@ NO incluyas URLs ni DOIs en ningún campo.
             myth: userQuery,
             isTrue: false,
             explanation_simple:
-              'No he podido estructurar bien la respuesta del modelo. En resumen, no hay pruebas sólidas para afirmarlo con seguridad.',
+              'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
             explanation_expert:
-              'La respuesta del modelo no se pudo convertir del todo bien a formato estructurado. Se ofrece una síntesis conservadora basada en la evidencia disponible.',
+              'Desde MMX consideramos que las respuestas a algunos mitos entreñan demasiada complejidad. Si quieres que respondamos al mito, contáctanos a https://metabolismix.com/contacto/',
             evidenceLevel: 'Baja',
             sources: [],
             category: '',
@@ -420,11 +418,9 @@ NO incluyas URLs ni DOIs en ningún campo.
       myth: '',
       isTrue: false,
       explanation_simple:
-        'Ha ocurrido un problema interno al procesar la consulta. No puedo revisar esta afirmación ahora mismo.',
+        'Ha ocurrido un problema interno al procesar la consulta. No puedo revisar esta afirmación ahora mismo. Contáctanos si el error persiste.',
       explanation_expert:
-        `Se produjo una excepción interna en la función del servidor: ${error?.message || String(
-          error
-        )}. Conviene revisar los logs del servidor para depurar el origen.`,
+        'Ha ocurrido un problema interno al procesar la consulta. No puedo revisar esta afirmación ahora mismo. Contáctanos si el error persiste.',
       evidenceLevel: 'Baja',
       sources: [],
       category: 'Error interno',
@@ -432,3 +428,4 @@ NO incluyas URLs ni DOIs en ningún campo.
     });
   }
 };
+
