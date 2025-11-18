@@ -211,11 +211,8 @@
 
         const rawText = await res.text();
 
-        // Si la función devuelve error estructurado pero con status 200, lo gestionamos aquí
         if (!res.ok) {
-          // Intentamos detectar explícitamente casos de sobrecarga por si algún día pasan
           if (rawText && /model is overloaded/i.test(rawText)) {
-            // Fallback suave para no romper la experiencia
             return {
               myth: stripUrls(userQuery || ''),
               isTrue: false,
@@ -230,11 +227,9 @@
           throw new Error(`Error en el servidor: ${res.status} - ${rawText}`);
         }
 
-        // Si todo va bien, parseamos como JSON
         const data = rawText ? JSON.parse(rawText) : {};
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) {
-          // Incluso si viene vacío, devolvemos fallback; no rompemos UX
           return parseCandidateJSON('', userQuery);
         }
         return parseCandidateJSON(text, userQuery);
@@ -302,8 +297,9 @@
       const c = {
         myth: stripUrls(card.myth || ''),
         isTrue: !!card.isTrue,
-        explanation_simple: stripUrls(card.explanation_simple || ''),
-        explanation_expert: stripUrls(card.explanation_expert || ''),
+        // IMPORTANTE: NO stripUrls aquí para conservar posibles <a> del backend
+        explanation_simple: card.explanation_simple || '',
+        explanation_expert: card.explanation_expert || '',
         evidenceLevel: stripUrls(card.evidenceLevel || 'Baja'),
         sources: Array.isArray(card.sources) ? card.sources.filter(s=>!isUrlish(s)).map(stripUrls) : [],
         category: stripUrls(card.category || ''),
@@ -339,6 +335,7 @@
             </div>
 
             <div class="explanation-container">
+              <!-- Aquí la explicación puede contener HTML (incluido el <a> del fallback) -->
               <p class="explanation-simple text-slate-600 leading-relaxed text-base">${c.explanation_simple || '—'}</p>
               <p class="explanation-expert text-slate-600 leading-relaxed text-base hidden">${c.explanation_expert || '—'}</p>
             </div>
@@ -438,15 +435,13 @@
       try {
         const card = await fetchApiResponse(query);
 
-        // Saneado extra por si quedara alguna URL
+        // Saneado mínimo: mito / categoría / fuentes sin URLs;
+        // PERO dejamos explicaciones tal cual vienen del backend.
         card.myth = stripUrls(card.myth);
-        card.explanation_simple = stripUrls(card.explanation_simple);
-        card.explanation_expert = stripUrls(card.explanation_expert);
         card.category = stripUrls(card.category);
         card.sources = Array.isArray(card.sources) ? card.sources.filter(s=>!isUrlish(s)).map(stripUrls) : [];
         card.relatedMyths = Array.isArray(card.relatedMyths) ? card.relatedMyths.filter(s=>!isUrlish(s)).map(stripUrls) : [];
 
-        // Validación mínima; si falla, ajustamos a algo seguro
         if (!isCardDataValid(card)) {
           card.isTrue = false;
           card.evidenceLevel = 'Baja';
