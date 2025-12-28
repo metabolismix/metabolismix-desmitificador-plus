@@ -1,15 +1,23 @@
 // netlify/functions/verifymyth.js
-// Node 18+ (Netlify Functions). Sin dependencias externas.
+// Node runtime en Netlify. Sin dependencias externas (solo fetch).
 
-const GEMINI_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const MODEL = "gemini-2.5-flash";
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json; charset=utf-8",
+  "Cache-Control": "no-store",
+};
 
 const SYSTEM_INSTRUCTION = `
 Eres Mito-Bot MMX, un verificador científico directo e informal de España.
 Tu misión: desmentir MITOS (carmín) o confirmar REALIDADES (esmeralda) sobre fitness, nutrición y salud.
 
 Reglas:
-- Devuelve SOLO JSON (sin markdown, sin texto extra).
+- Devuelve SOLO JSON válido (sin markdown, sin texto extra).
 - No uses la palabra "Bulazo". Usa "Mito".
 - explanation_simple: 2 frases claras, sin jerga.
 - explanation_expert: 3 frases más técnicas, pero sin ponerse académico.
@@ -17,9 +25,9 @@ Reglas:
 - sources: 2 a 6 strings cortas (p. ej. "ISSN Position Stand 2022", "NEJM 2019", "ESC 2023").
 - category: 1-3 palabras (p. ej. "Suplementos", "Entrenamiento", "Nutrición", "Sueño", "Cardiometabólico").
 - relatedMyths: 2 a 5 sugerencias, estilo “mito consultable”.
-`;
+`.trim();
 
-const RESPONSE_SCHEMA = {
+const RESPONSE_JSON_SCHEMA = {
   type: "object",
   properties: {
     myth: { type: "string" },
@@ -29,7 +37,7 @@ const RESPONSE_SCHEMA = {
     evidenceLevel: { type: "string", enum: ["Baja", "Moderada", "Alta"] },
     sources: { type: "array", items: { type: "string" } },
     category: { type: "string" },
-    relatedMyths: { type: "array", items: { type: "string" } }
+    relatedMyths: { type: "array", items: { type: "string" } },
   },
   required: [
     "myth",
@@ -39,118 +47,135 @@ const RESPONSE_SCHEMA = {
     "evidenceLevel",
     "sources",
     "category",
-    "relatedMyths"
-  ]
+    "relatedMyths",
+  ],
 };
 
-function jsonResponse(statusCode, bodyObj) {
-  return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST,OPTIONS"
-    },
-    body: JSON.stringify(bodyObj)
-  };
+function json(statusCode, obj) {
+  return { statusCode, headers: corsHeaders, body: JSON.stringify(obj) };
+}
+
+function safeStr(v) {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function safeArr(v) {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((x) => typeof x === "string")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function coerceResult(x) {
-  const safe = (v) => (typeof v === "string" ? v.trim() : "");
-  const safeArr = (v) => (Array.isArray(v) ? v.filter((s) => typeof s === "string").map((s) => s.trim()).filter(Boolean) : []);
-
-  let evidence = safe(x.evidenceLevel);
-  if (!["Baja", "Moderada", "Alta"].includes(evidence)) evidence = "Baja";
+  const evidence = ["Baja", "Moderada", "Alta"].includes(safeStr(x?.evidenceLevel))
+    ? safeStr(x.evidenceLevel)
+    : "Baja";
 
   return {
-    myth: safe(x.myth) || "—",
-    isTrue: !!x.isTrue,
-    explanation_simple: safe(x.explanation_simple) || "No he podido generar una explicación simple.",
-    explanation_expert: safe(x.explanation_expert) || "No he podido generar una explicación experta.",
+    myth: safeStr(x?.myth) || "—",
+    isTrue: !!x?.isTrue,
+    explanation_simple: safeStr(x?.explanation_simple) || "No he podido generar una explicación simple.",
+    explanation_expert: safeStr(x?.explanation_expert) || "No he podido generar una explicación experta.",
     evidenceLevel: evidence,
-    sources: safeArr(x.sources).slice(0, 8),
-    category: safe(x.category) || "General",
-    relatedMyths: safeArr(x.relatedMyths).slice(0, 6)
+    sources: safeArr(x?.sources).slice(0, 8),
+    category: safeStr(x?.category) || "General",
+    relatedMyths: safeArr(x?.relatedMyths).slice(0, 6),
   };
 }
 
+function extractModelText(geminiJson) {
+  const parts = geminiJson?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts) || parts.length === 0) return "";
+  return parts.map((p) => (typeof p?.text === "string" ? p.text : "")).join("");
+}
+
 exports.handler = async (event) => {
-  if (event.httpMethod === "OPTIONS") return jsonResponse(200, { ok: true });
-  if (event.httpMethod !== "POST") return jsonResponse(405, { error: "Método no permitido" });
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return jsonResponse(500, { error: "Falta GEMINI_API_KEY en variables de entorno" });
-
-  let text = "";
   try {
-    const body = JSON.parse(event.body || "{}");
-    text = String(body.text || "");
-  } catch {
-    return jsonResponse(400, { error: "Body inválido (JSON requerido)" });
-  }
-
-  const cleaned = text.trim();
-  if (!cleaned) return jsonResponse(400, { error: "Texto vacío" });
-  if (cleaned.length > 240) return jsonResponse(400, { error: "Texto demasiado largo (máx 240 caracteres)" });
-
-  const userPrompt = `Oye, analízame esto: "${cleaned}"`;
-
-  const payload = {
-    systemInstruction: {
-      parts: [{ text: SYSTEM_INSTRUCTION }]
-    },
-    contents: [{
-      role: "user",
-      parts: [{ text: userPrompt }]
-    }],
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 420,
-      responseMimeType: "application/json",
-      responseJsonSchema: RESPONSE_SCHEMA
+    // CORS preflight
+    if (event.httpMethod === "OPTIONS") {
+      return json(200, { ok: true });
     }
-  };
+    if (event.httpMethod !== "POST") {
+      return json(405, { error: "Method not allowed" });
+    }
 
-  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return json(500, { error: "Falta GEMINI_API_KEY en variables de entorno de Netlify." });
+    }
+
+    let body;
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      return json(400, { error: "Body inválido (JSON requerido)." });
+    }
+
+    const text = safeStr(body?.text);
+    if (!text) return json(400, { error: "Texto vacío." });
+
+    // Límite defensivo (coste + robustez)
+    // Ajusta si quieres, pero no lo quites.
+    if (text.length > 240) return json(400, { error: "Texto demasiado largo (máx 240 caracteres)." });
+
+    const prompt = `Oye, analízame esto: "${text}"`;
+
+    const reqBody = {
+      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 450, // ✅ lo que me pediste
+        responseMimeType: "application/json",
+        responseJsonSchema: RESPONSE_JSON_SCHEMA,
+      },
+    };
+
     const resp = await fetch(GEMINI_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": apiKey
+        "x-goog-api-key": apiKey,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(reqBody),
     });
 
+    const geminiJson = await resp.json().catch(() => null);
+
     if (!resp.ok) {
-      const t = await resp.text().catch(() => "");
-      return jsonResponse(502, { error: `Gemini API error (${resp.status})`, details: t.slice(0, 500) });
+      return json(resp.status, {
+        error: "Error desde Gemini API.",
+        details: geminiJson || null,
+      });
     }
 
-    const data = await resp.json();
-
-    const textOut =
-      data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") ||
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "";
+    const textOut = extractModelText(geminiJson);
+    if (!textOut) {
+      return json(500, { error: "Respuesta vacía o inválida del modelo.", details: geminiJson || null });
+    }
 
     let parsed;
     try {
       parsed = JSON.parse(textOut);
     } catch {
-      // Por si viniera con ruido (raro en structured outputs, pero mejor blindar)
+      // fallback por si viniera con ruido
       const start = textOut.indexOf("{");
       const end = textOut.lastIndexOf("}");
       if (start >= 0 && end > start) {
-        parsed = JSON.parse(textOut.slice(start, end + 1));
+        try {
+          parsed = JSON.parse(textOut.slice(start, end + 1));
+        } catch {
+          return json(500, { error: "El modelo no devolvió JSON parseable.", raw: textOut });
+        }
       } else {
-        return jsonResponse(502, { error: "No se pudo parsear JSON de Gemini", details: textOut.slice(0, 500) });
+        return json(500, { error: "El modelo no devolvió JSON parseable.", raw: textOut });
       }
     }
 
-    return jsonResponse(200, coerceResult(parsed));
+    // Devuelve exactamente el shape que espera tu frontend (sin wrapper)
+    return json(200, coerceResult(parsed));
   } catch (e) {
-    return jsonResponse(500, { error: "Fallo llamando a Gemini", details: String(e?.message || e) });
+    return json(500, { error: "Error interno en Netlify Function.", details: String(e?.message || e) });
   }
 };
