@@ -1,7 +1,7 @@
 // netlify/functions/verifymyth.js
-// FINAL — ESM para Netlify (export const handler)
+// FINAL (CommonJS) — máxima compatibilidad en Netlify
 // Gemini 2.5 Flash + JSON schema + maxOutputTokens 450
-// Sin dependencias externas (solo fetch)
+// Sin dependencias externas (usa fetch nativo de Node 18+)
 
 const MODEL = "gemini-2.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -14,7 +14,7 @@ const corsHeaders = {
   "Cache-Control": "no-store",
 };
 
-function json(statusCode, obj) {
+function reply(statusCode, obj) {
   return { statusCode, headers: corsHeaders, body: JSON.stringify(obj) };
 }
 
@@ -44,35 +44,35 @@ function extractModelText(geminiJson) {
   return parts.map((p) => (typeof p?.text === "string" ? p.text : "")).join("");
 }
 
-export const handler = async (event) => {
+exports.handler = async (event) => {
   try {
-    // Healthcheck: abre /.netlify/functions/verifymyth en el navegador y debe salir 200 JSON
+    // ✅ Healthcheck (esto es CLAVE para aislar el 404)
     if (event.httpMethod === "GET") {
-      return json(200, { ok: true, message: "verifymyth function alive" });
+      return reply(200, { ok: true, message: "verifymyth function alive" });
     }
 
     if (event.httpMethod === "OPTIONS") {
-      return json(200, { ok: true });
+      return reply(200, { ok: true });
     }
 
     if (event.httpMethod !== "POST") {
-      return json(405, { error: "Method not allowed" });
+      return reply(405, { error: "Method not allowed" });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return json(500, { error: "Falta GEMINI_API_KEY en variables de entorno de Netlify." });
+      return reply(500, { error: "Falta GEMINI_API_KEY en variables de entorno de Netlify." });
     }
 
     let raw;
     try {
       raw = JSON.parse(event.body || "{}");
     } catch {
-      return json(400, { error: "Body inválido (JSON requerido)." });
+      return reply(400, { error: "Body inválido (JSON requerido)." });
     }
 
     const userText = safeString(raw?.text, 420);
-    if (!userText) return json(400, { error: "Falta el campo text." });
+    if (!userText) return reply(400, { error: "Falta el campo text." });
 
     const systemInstruction = `
 Eres Mito-Bot MMX, un verificador científico directo e informal de España sobre fitness, nutrición y salud.
@@ -95,7 +95,6 @@ Reglas duras:
       `INSTRUCCIONES:\n` +
       `- Devuelve SOLO JSON válido.\n`;
 
-    // Nota: en esta API v1beta, se usa responseSchema (no responseJsonSchema) para forzar JSON. (Funciona bien en Netlify)
     const responseSchema = {
       type: "object",
       properties: {
@@ -131,7 +130,7 @@ Reglas duras:
       },
     };
 
-    // ✅ Forma más robusta en Functions: key en querystring (evita cabeceras raras en edge/proxy)
+    // ✅ robusto: key por querystring
     const resp = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -139,31 +138,29 @@ Reglas duras:
     });
 
     const geminiJson = await resp.json().catch(() => null);
-
     if (!resp.ok) {
-      return json(resp.status, { error: "Error desde Gemini API.", details: geminiJson });
+      return reply(resp.status, { error: "Error desde Gemini API.", details: geminiJson });
     }
 
     const textOut = extractModelText(geminiJson);
     if (!textOut) {
-      return json(500, { error: "Respuesta vacía o inválida del modelo.", details: geminiJson });
+      return reply(500, { error: "Respuesta vacía o inválida del modelo.", details: geminiJson });
     }
 
     let parsed;
     try {
       parsed = JSON.parse(textOut);
     } catch {
-      // fallback si viniera con algo raro
       const start = textOut.indexOf("{");
       const end = textOut.lastIndexOf("}");
       if (start >= 0 && end > start) {
         try {
           parsed = JSON.parse(textOut.slice(start, end + 1));
         } catch {
-          return json(500, { error: "El modelo no devolvió JSON parseable.", raw: textOut });
+          return reply(500, { error: "El modelo no devolvió JSON parseable.", raw: textOut });
         }
       } else {
-        return json(500, { error: "El modelo no devolvió JSON parseable.", raw: textOut });
+        return reply(500, { error: "El modelo no devolvió JSON parseable.", raw: textOut });
       }
     }
 
@@ -179,9 +176,8 @@ Reglas duras:
     };
 
     const usage = geminiJson?.usageMetadata || null;
-
-    return json(200, { result: clean, usage });
+    return reply(200, { result: clean, usage });
   } catch (e) {
-    return json(500, { error: "Error interno en Netlify Function.", details: String(e?.message || e) });
+    return reply(500, { error: "Error interno en Netlify Function.", details: String(e?.message || e) });
   }
 };
