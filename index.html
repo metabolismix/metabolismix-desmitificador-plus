@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mito-Bot MMX | Ciencia Real</title>
 
-  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Fuente -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -17,27 +15,27 @@
     body {
       font-family: 'Inter', sans-serif;
       background-color: #f4f7f9;
-      background-image:
-        radial-gradient(circle at 1px 1px, rgba(0, 188, 201, 0.05) 1px, transparent 0);
+      background-image: radial-gradient(circle at 1px 1px, rgba(0, 188, 201, 0.05) 1px, transparent 0);
       background-size: 16px 16px;
       letter-spacing: -0.018em;
       color: #003d5b;
     }
 
-    .bg-mmx-gradient {
-      background: linear-gradient(135deg, #00BCC9 0%, #0088A3 100%);
-    }
+    .bg-mmx-gradient { background: linear-gradient(135deg, #00BCC9 0%, #0088A3 100%); }
     .text-mmx-gradient {
       background: linear-gradient(135deg, #00BCC9 0%, #0088A3 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
-    /* Colores solicitados */
-    .text-reality { color: #10B981; } /* Esmeralda */
-    .text-myth { color: #960018; }    /* Rojo Carmín */
+    .text-reality { color: #10B981; }
+    .text-myth { color: #960018; }
     .bg-reality { background-color: #10B981; }
     .bg-myth { background-color: #960018; }
+
+    /* equivalente a "bg-info" del Gauge original */
+    .bg-info { background-color: #0ea5e9; }  /* sky-500 */
+    .text-info { color: #0ea5e9; }
 
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -53,23 +51,41 @@
       background-size: 8px 8px;
     }
 
-    /* Animaciones suaves */
-    .active-scale:active { transform: scale(0.97); }
-    textarea::placeholder { color: #cbd5e1; }
-
-    /* Pequeño “glow” para el panel principal */
     .glow-teal {
-      box-shadow: 0 24px 60px rgba(0, 188, 201, 0.10);
+      box-shadow:
+        0 20px 40px rgba(0, 61, 91, 0.06),
+        0 0 0 1px rgba(0, 188, 201, 0.06);
     }
+
+    /* helpers que en Vite suelen venir de plugins */
+    .animate-in { animation-duration: 300ms; animation-fill-mode: both; }
+    .fade-in { animation-name: fadeIn; }
+    .zoom-in-95 { animation-name: zoomIn95; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes zoomIn95 {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .line-clamp-1 {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+    }
+
+    textarea::placeholder { color: #9ca3af; }
   </style>
 
-  <!-- Importmap (React por ESM, sin build step) -->
   <script type="importmap">
   {
     "imports": {
-      "react-dom/": "https://esm.sh/react-dom@19.2.0/",
-      "react/": "https://esm.sh/react@19.2.0/",
-      "react": "https://esm.sh/react@19.2.0"
+      "react": "https://esm.sh/react@19.2.3",
+      "react-dom/client": "https://esm.sh/react-dom@19.2.3/client"
     }
   }
   </script>
@@ -78,199 +94,247 @@
 <body>
   <div id="root"></div>
 
-  <!-- “Safelist” simple (por si Tailwind CDN no pilla strings dinámicas) -->
-  <div class="hidden bg-sky-500 text-sky-500 w-2/3 w-1/3"></div>
-
   <script type="module">
     import React, { useEffect, useMemo, useRef, useState } from "react";
     import { createRoot } from "react-dom/client";
 
-    // --- Iconos ---
-    const CopyIcon = () => React.createElement("svg", {
-      className: "h-3.5 w-3.5",
-      fill: "none",
-      viewBox: "0 0 24 24",
-      stroke: "currentColor",
-      strokeWidth: "2.5"
-    }, React.createElement("path", {
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      d: "M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25"
-    }));
+    const STORAGE_KEY = "mitobot_history_mmx";
 
-    const CheckIcon = ({ size = "h-3.5 w-3.5" } = {}) => React.createElement("svg", {
-      className: size,
-      fill: "none",
-      viewBox: "0 0 24 24",
-      stroke: "currentColor",
-      strokeWidth: "4"
-    }, React.createElement("path", {
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      d: "m4.5 12.75 6 6 9-13.5"
-    }));
+    const SUGGESTIONS = [
+      "Creatina y riñón",
+      "Beber 2 litros de agua",
+      "Ayuno intermitente",
+      "Azúcar e hiperactividad"
+    ];
 
-    const TrashIcon = () => React.createElement("svg", {
-      className: "h-3.5 w-3.5",
-      fill: "none",
-      viewBox: "0 0 24 24",
-      stroke: "currentColor",
-      strokeWidth: "2.5"
-    }, React.createElement("path", {
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      d: "M6 18 18 6M6 6l12 12"
-    }));
+    const LOADER_MESSAGES = [
+      "Buscando evidencia...",
+      "Analizando los datos...",
+      "Consultando estudios...",
+      "Casi lo tenemos...",
+      "Separando el grano..."
+    ];
 
-    const XIcon = ({ size = "h-3.5 w-3.5" } = {}) => React.createElement("svg", {
-      className: size,
-      fill: "none",
-      viewBox: "0 0 24 24",
-      stroke: "currentColor",
-      strokeWidth: "4"
-    }, React.createElement("path", {
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      d: "M6 18 18 6M6 6l12 12"
-    }));
+    function uid() {
+      try {
+        return crypto.randomUUID();
+      } catch {
+        return "id_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+      }
+    }
 
-    const ArrowIcon = () => React.createElement("svg", {
-      className: "h-3 w-3 opacity-0 group-hover:opacity-100 transition-all",
-      fill: "none",
-      viewBox: "0 0 24 24",
-      stroke: "currentColor",
-      strokeWidth: "4"
-    }, React.createElement("path", {
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      d: "m8.25 4.5 7.5 7.5-7.5 7.5"
-    }));
+    function safeArray(x) {
+      return Array.isArray(x) ? x.filter(v => typeof v === "string").map(s => s.trim()).filter(Boolean) : [];
+    }
 
-    // --- Componente: Gauge de Evidencia ---
+    function coerceResult(payload, fallbackMyth) {
+      const ev = (payload?.evidenceLevel === "Alta" || payload?.evidenceLevel === "Moderada" || payload?.evidenceLevel === "Baja")
+        ? payload.evidenceLevel
+        : "Baja";
+      return {
+        myth: (typeof payload?.myth === "string" && payload.myth.trim()) ? payload.myth.trim() : fallbackMyth,
+        isTrue: !!payload?.isTrue,
+        explanation_simple: (typeof payload?.explanation_simple === "string") ? payload.explanation_simple.trim() : "",
+        explanation_expert: (typeof payload?.explanation_expert === "string") ? payload.explanation_expert.trim() : "",
+        evidenceLevel: ev,
+        sources: safeArray(payload?.sources).slice(0, 8),
+        category: (typeof payload?.category === "string" && payload.category.trim()) ? payload.category.trim() : "General",
+        relatedMyths: safeArray(payload?.relatedMyths).slice(0, 6),
+      };
+    }
+
+    async function verifyMyth(text) {
+      const resp = await fetch("/.netlify/functions/verifymyth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const msg = data?.error || "Error de conexión.";
+        throw new Error(msg);
+      }
+
+      // Compatibilidad: si la function devuelve {result: {...}} o directamente {...}
+      return data?.result ?? data;
+    }
+
     const Gauge = ({ level }) => {
-      const info = useMemo(() => {
+      const info = (() => {
         switch (level) {
-          case "Alta":
-            return { color: "bg-reality", width: "w-full", label: "CIENCIA PURA", perc: "99%" };
-          case "Moderada":
-            return { color: "bg-sky-500", width: "w-2/3", label: "BASTANTE FIABLE", perc: "70%" };
-          default:
-            return { color: "bg-myth", width: "w-1/3", label: "MUY DUDOSO", perc: "15%" };
+          case "Alta": return { color: "bg-reality", text: "text-reality", width: "100%", label: "FIABILIDAD TOTAL", pct: "99%" };
+          case "Moderada": return { color: "bg-info", text: "text-info", width: "70%", label: "BASTANTE FIABLE", pct: "70%" };
+          default: return { color: "bg-myth", text: "text-myth", width: "15%", label: "POCO FIABLE", pct: "15%" };
         }
-      }, [level]);
-
-      const labelTextClass = info.color.startsWith("bg-")
-        ? info.color.replace("bg-", "text-")
-        : "text-gray-600";
+      })();
 
       return (
-        React.createElement("div", { className: "w-full" },
-          React.createElement("div", { className: "flex justify-between items-end mb-1" },
-            React.createElement("span", { className: `text-[9px] font-bold ${labelTextClass}` }, info.label),
-            React.createElement("span", { className: "text-lg font-black italic text-gray-900 leading-none" }, info.perc)
+        React.createElement("div", { className: "w-full group" },
+          React.createElement("div", { className: "flex justify-between items-end mb-1.5" },
+            React.createElement("div", null,
+              React.createElement("span", { className: "text-[8px] font-black uppercase text-gray-300 block leading-none mb-0.5" }, "Evidencia científica"),
+              React.createElement("span", { className: `text-[9px] font-bold leading-none ${info.text}` }, info.label)
+            ),
+            React.createElement("div", { className: "text-right" },
+              React.createElement("span", { className: "text-lg font-black italic text-gray-900 leading-none" }, info.pct)
+            )
           ),
-          React.createElement("div", { className: "h-2 w-full bg-gray-100 rounded-full overflow-hidden p-0.5 shadow-inner" },
-            React.createElement("div", { className: `h-full ${info.color} rounded-full transition-all duration-1000 ${info.width}` })
+          React.createElement("div", { className: "h-2.5 w-full bg-gray-100 rounded-full overflow-hidden p-0.5 border border-gray-200/50 shadow-inner" },
+            React.createElement("div", {
+              className: `h-full ${info.color} rounded-full transition-all duration-1000`,
+              style: { width: info.width, transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)" }
+            })
           )
         )
       );
     };
 
-    // --- Componente: Tarjeta de Resultado ---
-    const ResultCard = ({ result, onDelete, onRelated }) => {
+    const Loader = () => {
+      const [idx, setIdx] = useState(0);
+
+      useEffect(() => {
+        const t = setInterval(() => setIdx(prev => (prev + 1) % LOADER_MESSAGES.length), 1200);
+        return () => clearInterval(t);
+      }, []);
+
+      return (
+        React.createElement("div", { className: "fixed inset-0 bg-white/95 backdrop-blur-sm z-[100] flex flex-col items-center justify-center p-6 text-center animate-in fade-in" },
+          React.createElement("div", { className: "relative mb-6 scale-110" },
+            React.createElement("div", { className: "w-12 h-12 border-[4px] border-gray-100 rounded-xl absolute top-0 left-0" }),
+            React.createElement("div", { className: "w-12 h-12 border-[4px] border-[#00BCC9] rounded-xl absolute top-0 left-0 border-t-transparent", style: { animation: "spin 0.8s linear infinite" } }),
+            React.createElement("div", { className: "w-12 h-12 flex items-center justify-center" },
+              React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-5 w-5 text-[#0088A3] animate-pulse", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: "2.5" },
+                React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" })
+              )
+            )
+          ),
+          React.createElement("div", { className: "max-w-xs mx-auto" },
+            React.createElement("h3", { className: "text-lg font-bold text-[#003d5b] tracking-tight transition-all duration-300 min-h-[2.5rem] flex items-center justify-center leading-tight" }, LOADER_MESSAGES[idx]),
+            React.createElement("p", { className: "text-gray-400 font-bold uppercase text-[8px] tracking-normal mt-1" }, "Ciencia sin filtros")
+          ),
+          React.createElement("style", null, `
+            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          `)
+        )
+      );
+    };
+
+    const ResultCard = ({ result, onRelatedClick, onDelete }) => {
       const [mode, setMode] = useState("simple");
       const [copied, setCopied] = useState(false);
 
-      const copy = async () => {
-        const text = `Veredicto Mito-Bot: "${result.myth}" -> Es ${result.isTrue ? "VERDAD" : "MITO"}. ${
-          mode === "simple" ? result.explanation_simple : result.explanation_expert
-        }`;
+      const copyToClipboard = async () => {
+        const statusText = result.isTrue ? "VERDADERO" : "MITO";
+        const text =
+          `💡 Mito-Bot MMX: "${result.myth}"\n` +
+          `✅ Veredicto: Es ${statusText}.\n` +
+          `📖 Explicación: ${mode === "simple" ? result.explanation_simple : result.explanation_expert}`;
 
         try {
           await navigator.clipboard.writeText(text);
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         } catch {
-          alert("No he podido copiar (permiso del navegador).");
+          // fallback mínimo
+          alert("No pude copiar al portapapeles en este navegador.");
         }
       };
 
       return (
-        React.createElement("div", { className: "w-full snap-center min-w-full px-1" },
-          React.createElement("div", { className: "bg-white rounded-3xl p-5 border border-white shadow-lg flex flex-col h-full relative overflow-hidden pattern-dots" },
+        React.createElement("div", { className: "w-full flex-shrink-0 px-1 animate-in zoom-in-95 duration-300" },
+          React.createElement("div", { className: "bg-white rounded-[2rem] p-5 md:p-6 border border-white shadow-lg flex flex-col h-full relative overflow-hidden pattern-dots" },
 
-            React.createElement("div", { className: "absolute top-4 right-4 flex gap-2" },
+            React.createElement("div", { className: "absolute top-5 right-5 flex gap-2 z-20" },
               React.createElement("button", {
-                onClick: copy,
-                className: `p-2 rounded-lg border transition-all ${copied ? "bg-reality text-white" : "bg-white text-gray-400 hover:text-sky-500"}`
-              }, copied ? React.createElement(CheckIcon) : React.createElement(CopyIcon)),
+                onClick: copyToClipboard,
+                className: `p-2 rounded-lg transition-all border ${copied ? "bg-reality text-white border-reality" : "bg-white text-gray-400 border-gray-100 hover:text-[#00BCC9]"}`
+              },
+                copied
+                  ? React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-3.5 w-3.5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3" },
+                      React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "m4.5 12.75 6 6 9-13.5" })
+                    )
+                  : React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-3.5 w-3.5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5" },
+                      React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.045 1.124-.045 1.133 0 2.232.132 3.284.382 1.055.25 1.842 1.185 1.842 2.27V7.5m-11 0h11m-11 0v10.5c0 1.135.845 2.098 1.976 2.192.373.03.748.045 1.124.045 1.133 0 2.232-.132 3.284-.382 1.055-.25 1.842-1.185 1.842-2.27V7.5M8.25 7.5h11m-11 10.5h11" })
+                    )
+              ),
 
-              React.createElement("button", {
+              onDelete && React.createElement("button", {
                 onClick: () => onDelete(result.id),
-                className: "p-2 rounded-lg bg-white text-gray-300 hover:text-myth"
-              }, React.createElement(TrashIcon))
-            ),
-
-            React.createElement("div", { className: "flex items-center gap-3 mb-4" },
-              React.createElement("div", {
-                className: `p-2.5 rounded-xl ${result.isTrue ? "bg-[#e9f9f5] text-reality" : "bg-[#fff1f3] text-myth"}`
-              }, result.isTrue ? React.createElement(CheckIcon, { size: "h-6 w-6" }) : React.createElement(XIcon, { size: "h-6 w-6" })),
-
-              React.createElement("div", { className: "leading-none" },
-                React.createElement("span", { className: "text-[8px] font-bold uppercase text-gray-400 block mb-0.5" }, "Veredicto"),
-                React.createElement("div", {
-                  className: `text-xl font-black italic ${result.isTrue ? "text-reality" : "text-myth"}`
-                }, result.isTrue ? "REALIDAD" : "MITO")
+                className: "p-2 rounded-lg bg-white text-gray-300 border border-gray-100 hover:text-rose-500"
+              },
+                React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-3.5 w-3.5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "3" },
+                  React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M6 18 18 6M6 6l12 12" })
+                )
               )
             ),
 
-            React.createElement("div", { className: "flex-1 mb-4" },
-              React.createElement("span", {
-                className: "inline-block px-2 py-0.5 rounded bg-gray-50 text-gray-400 text-[8px] font-bold uppercase border border-gray-100 mb-2"
-              }, result.category || "General"),
+            React.createElement("div", { className: "mb-4 relative z-10 flex items-center gap-3" },
+              React.createElement("div", { className: `p-3 rounded-xl ${result.isTrue ? "bg-[#e9f9f5] text-reality" : "bg-[#fff1f3] text-myth"}` },
+                result.isTrue
+                  ? React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-6 w-6", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "4" },
+                      React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "m4.5 12.75 6 6 9-13.5" })
+                    )
+                  : React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-6 w-6", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "4" },
+                      React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M6 18 18 6M6 6l12 12" })
+                    )
+              ),
+              React.createElement("div", null,
+                React.createElement("span", { className: "text-[8px] font-black uppercase text-gray-400 block leading-none mb-0.5" }, "Veredicto"),
+                React.createElement("div", { className: `text-2xl font-black italic leading-none ${result.isTrue ? "text-reality" : "text-myth"}` },
+                  result.isTrue ? "REALIDAD" : "MITO"
+                )
+              )
+            ),
 
-              React.createElement("h3", { className: "text-lg font-black text-[#003d5b] leading-tight mb-4" }, `"${result.myth}"`),
+            React.createElement("div", { className: "flex-1 mb-5" },
+              React.createElement("span", { className: "inline-block px-2.5 py-1 rounded-md bg-gray-50 text-gray-500 text-[8px] font-bold uppercase border border-gray-100 mb-2" }, result.category),
+              React.createElement("h3", { className: "text-xl font-black text-[#003d5b] leading-tight mb-4" }, `"${result.myth}"`),
 
-              React.createElement("div", { className: "bg-gray-100 p-0.5 rounded-xl flex gap-0.5 mb-4 max-w-[200px] border border-gray-200/50" },
+              React.createElement("div", { className: "bg-gray-100 p-0.5 rounded-xl flex gap-0.5 mb-4 border border-gray-200/50 shadow-inner max-w-[240px]" },
                 React.createElement("button", {
                   onClick: () => setMode("simple"),
-                  className: `flex-1 py-1 text-[9px] font-bold rounded-lg ${mode === "simple" ? "bg-white shadow-sm" : "text-gray-400"}`
+                  className: `flex-1 py-1.5 text-[9px] font-bold rounded-lg transition-all ${mode === "simple" ? "bg-white text-[#003d5b] shadow-sm" : "text-gray-400"}`
                 }, "En Cristiano"),
-
                 React.createElement("button", {
                   onClick: () => setMode("expert"),
-                  className: `flex-1 py-1 text-[9px] font-bold rounded-lg ${mode === "expert" ? "bg-white shadow-sm" : "text-gray-400"}`
+                  className: `flex-1 py-1.5 text-[9px] font-bold rounded-lg transition-all ${mode === "expert" ? "bg-white text-[#003d5b] shadow-sm" : "text-gray-400"}`
                 }, "Para Expertos")
               ),
 
-              React.createElement("p", { className: "text-sm font-medium text-gray-700 leading-snug" },
+              React.createElement("p", { className: "text-[#003d5b]/80 leading-snug text-base font-medium" },
                 mode === "simple" ? result.explanation_simple : result.explanation_expert
               )
             ),
 
             React.createElement("div", { className: "space-y-4" },
-              React.createElement(Gauge, { level: result.evidenceLevel || "Baja" }),
+              React.createElement(Gauge, { level: result.evidenceLevel }),
 
-              (result.sources && result.sources.length > 0) && React.createElement("div", { className: "pt-3 border-t border-gray-50 flex flex-wrap gap-1" },
-                result.sources.map((s, i) => (
-                  React.createElement("span", {
-                    key: i,
-                    className: "text-[9px] bg-white border px-2 py-0.5 rounded-md font-bold text-gray-600"
-                  }, s)
-                ))
+              result.sources?.length > 0 && React.createElement("div", { className: "pt-3 border-t border-gray-50" },
+                React.createElement("span", { className: "text-[8px] font-black uppercase text-gray-400 mb-2 block" }, "Fuentes:"),
+                React.createElement("div", { className: "flex flex-wrap gap-1.5" },
+                  result.sources.map((s, i) =>
+                    React.createElement("span", { key: i, className: "text-[9px] bg-white text-gray-700 px-2 py-1 rounded-lg font-bold border border-gray-100" }, s)
+                  )
+                )
               ),
 
-              (result.relatedMyths && result.relatedMyths.length > 0) && React.createElement("div", { className: "pt-3 border-t border-gray-50 grid gap-1" },
-                result.relatedMyths.map((m, i) => (
-                  React.createElement("button", {
-                    key: i,
-                    onClick: () => onRelated(m),
-                    className: "text-left text-[9px] font-bold text-gray-400 hover:text-sky-600 bg-gray-50/50 p-2 rounded-lg border border-transparent hover:border-sky-100 transition-all flex justify-between items-center group"
-                  },
-                    React.createElement("span", { className: "truncate" }, m),
-                    React.createElement(ArrowIcon)
+              result.relatedMyths?.length > 0 && React.createElement("div", { className: "pt-3 border-t border-gray-50" },
+                React.createElement("span", { className: "text-[8px] font-black uppercase text-gray-400 mb-2 block" }, "Relacionados:"),
+                React.createElement("div", { className: "grid gap-1.5" },
+                  result.relatedMyths.map((m, i) =>
+                    React.createElement("button", {
+                      key: i,
+                      onClick: () => onRelatedClick(m),
+                      className: "w-full text-left text-[10px] font-bold text-gray-500 hover:text-[#0088A3] hover:bg-[#00BCC9]/5 p-2 rounded-lg transition-all border border-gray-50 flex items-center justify-between group"
+                    },
+                      React.createElement("span", { className: "line-clamp-1" }, m),
+                      React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-3 w-3 opacity-0 group-hover:opacity-100 transition-all", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "4" },
+                        React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "m8.25 4.5 7.5 7.5-7.5 7.5" })
+                      )
+                    )
                   )
-                ))
+                )
               )
             )
           )
@@ -278,125 +342,235 @@
       );
     };
 
-    // --- App Principal ---
     const App = () => {
       const [query, setQuery] = useState("");
+      const [historySearch, setHistorySearch] = useState("");
       const [results, setResults] = useState([]);
       const [loading, setLoading] = useState(false);
+      const [isListening, setIsListening] = useState(false);
+      const [activeFilter, setActiveFilter] = useState("Todos");
       const carouselRef = useRef(null);
 
       useEffect(() => {
-        const saved = localStorage.getItem("mitobot_mmx_v2");
-        if (saved) setResults(JSON.parse(saved));
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try {
+            setResults(JSON.parse(saved));
+          } catch {
+            // ignore
+          }
+        }
       }, []);
 
       useEffect(() => {
-        localStorage.setItem("mitobot_mmx_v2", JSON.stringify(results));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
       }, [results]);
 
-      const verify = async (text) => {
-        if (!text || !text.trim() || loading) return;
+      const categories = useMemo(() => {
+        const set = new Set(results.map(r => r.category).filter(Boolean));
+        return ["Todos", ...Array.from(set)];
+      }, [results]);
+
+      const filteredResults = useMemo(() => {
+        const s = historySearch.trim().toLowerCase();
+        return results
+          .filter(r => activeFilter === "Todos" || r.category === activeFilter)
+          .filter(r => !s || (r.myth || "").toLowerCase().includes(s));
+      }, [results, activeFilter, historySearch]);
+
+      const handleVerify = async (textToVerify) => {
+        const trimmed = (textToVerify || "").trim();
+        if (!trimmed || loading) return;
 
         setLoading(true);
         try {
-          const res = await fetch("/.netlify/functions/verifymyth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text })
-          });
+          const payload = await verifyMyth(trimmed);
+          const coerced = coerceResult(payload, trimmed);
 
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err?.error || "Error en la función");
-          }
+          const newResult = {
+            ...coerced,
+            id: uid(),
+            timestamp: Date.now()
+          };
 
-          const data = await res.json();
-          const newRes = { ...data, id: crypto.randomUUID() };
-
-          setResults((prev) => [newRes, ...prev]);
+          setResults(prev => [newResult, ...prev]);
           setQuery("");
-          setTimeout(() => carouselRef.current?.scrollTo({ left: 0, behavior: "smooth" }), 300);
+          setActiveFilter("Todos");
+          setHistorySearch("");
+
+          setTimeout(() => {
+            if (carouselRef.current) {
+              carouselRef.current.scrollTo({ left: 0, behavior: "smooth" });
+            }
+          }, 250);
         } catch (e) {
-          alert("Se ha tostado la conexión. Reintenta.");
           console.error(e);
+          alert(e?.message || "Error de conexión. Prueba en un momento.");
         } finally {
           setLoading(false);
         }
       };
 
-      const truths = results.filter((r) => r.isTrue).length;
-      const myths = results.filter((r) => !r.isTrue).length;
+      const handleVoiceInput = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          alert("Tu navegador no soporta dictado por voz.");
+          return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = "es-ES";
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onresult = (event) => {
+          const transcript = event.results?.[0]?.[0]?.transcript || "";
+          setQuery(transcript);
+          handleVerify(transcript);
+        };
+        recognition.start();
+      };
+
+      const handleDelete = (id) => setResults(prev => prev.filter(r => r.id !== id));
 
       return (
-        React.createElement("div", { className: "max-w-md mx-auto px-4 pb-20 pt-4 flex flex-col h-screen overflow-hidden" },
-          loading && React.createElement("div", { className: "fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] flex items-center justify-center font-black animate-pulse" }, "BUSCANDO CIENCIA..."),
+        React.createElement("div", { className: "min-h-screen pb-24" },
+          loading && React.createElement(Loader),
 
-          React.createElement("header", { className: "mb-4 text-center shrink-0" },
-            React.createElement("h1", { className: "text-3xl font-black text-[#003d5b] tracking-tighter leading-none" },
-              "Mito-Bot ",
-              React.createElement("span", { className: "text-mmx-gradient" }, "MMX")
-            ),
-            React.createElement("p", { className: "text-[9px] font-bold text-gray-400 mt-1 uppercase" },
-              "IA Desmitificadora: Fitness, Nutrición y Salud"
-            )
-          ),
-
-          React.createElement("section", { className: "bg-white rounded-3xl p-4 shadow-xl border border-white mb-4 shrink-0 glow-teal" },
-            React.createElement("textarea", {
-              value: query,
-              onChange: (e) => setQuery(e.target.value),
-              placeholder: "¿Qué has oído hoy?",
-              className: "w-full bg-gray-50 border-none rounded-xl p-3 text-sm font-semibold text-[#003d5b] placeholder-gray-300 focus:ring-4 focus:ring-sky-100 transition-all resize-none h-20 mb-3"
-            }),
-
-            React.createElement("div", { className: "flex gap-1.5 overflow-x-auto no-scrollbar mb-3" },
-              ["Creatina", "Ayuno", "2L Agua"].map((s) => (
-                React.createElement("button", {
-                  key: s,
-                  onClick: () => setQuery(s),
-                  className: "text-[10px] font-bold bg-gray-50 text-gray-400 px-3 py-1 rounded-full border hover:bg-sky-50 transition-all shrink-0"
-                }, s)
-              ))
+          React.createElement("main", { className: "max-w-xl mx-auto px-4 pt-6" },
+            React.createElement("header", { className: "text-center mb-6 relative" },
+              React.createElement("h1", { className: "text-4xl font-black tracking-tight mb-0.5 text-[#003d5b]" },
+                "Mito-Bot ", React.createElement("span", { className: "text-mmx-gradient" }, "MMX")
+              ),
+              React.createElement("p", { className: "text-gray-400 font-bold text-[11px] leading-tight" },
+                "Desmitificador por IA de mitos, solo ciencia en fitness, nutrición y salud"
+              )
             ),
 
-            React.createElement("button", {
-              onClick: () => verify(query),
-              disabled: !query.trim() || loading,
-              className: "w-full bg-mmx-gradient text-white font-black uppercase py-3 rounded-xl shadow-lg active-scale text-xs flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-            },
-              React.createElement("span", null, "Verificar"),
-              React.createElement(CheckIcon)
-            )
-          ),
+            React.createElement("section", { className: "bg-white rounded-[2rem] p-5 md:p-6 shadow-xl border border-white mb-6 relative z-10 glow-teal overflow-hidden" },
+              React.createElement("div", { className: "absolute top-0 right-0 w-24 h-24 bg-[#00BCC9]/5 rounded-bl-full pointer-events-none" }),
 
-          React.createElement("div", {
-            ref: carouselRef,
-            className: "flex-1 overflow-x-auto snap-x snap-mandatory no-scrollbar flex gap-4 pb-4"
-          },
-            results.length === 0
-              ? React.createElement("div", { className: "w-full flex flex-col items-center justify-center opacity-20 py-10" },
-                  React.createElement("h3", { className: "text-sm font-black uppercase" }, "Sin consultas")
+              React.createElement("div", { className: "flex justify-between items-center mb-3" },
+                React.createElement("label", { className: "text-[10px] font-black uppercase text-[#0088A3] tracking-normal" }, "¿Qué te han contado ahora?"),
+                React.createElement("div", { className: "flex gap-1" },
+                  React.createElement("div", { className: "w-1.5 h-1.5 rounded-full bg-[#00BCC9] animate-pulse" }),
+                  React.createElement("div", { className: "w-1.5 h-1.5 rounded-full bg-[#00BCC9]/20" })
                 )
-              : results.map((r) => (
+              ),
+
+              React.createElement("div", { className: "relative mb-4 group" },
+                React.createElement("textarea", {
+                  value: query,
+                  onChange: (e) => setQuery(e.target.value),
+                  onKeyDown: (e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleVerify(query);
+                    }
+                  },
+                  placeholder: "Escribe tu duda...",
+                  className: "w-full bg-[#f4f7f9] border-none rounded-xl p-4 md:p-5 pr-14 text-base font-semibold text-[#003d5b] placeholder-gray-400 focus:ring-4 focus:ring-[#00BCC9]/10 transition-all resize-none min-h-[100px] shadow-inner"
+                }),
+
+                React.createElement("button", {
+                  onClick: handleVoiceInput,
+                  className: `absolute top-3 right-3 p-2.5 rounded-lg transition-all ${
+                    isListening ? "bg-rose-500 text-white shadow-lg animate-pulse" : "text-gray-300 hover:text-[#00BCC9] hover:bg-white"
+                  }`,
+                  title: "Dictado por voz"
+                },
+                  React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-5 w-5", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: "2.5" },
+                    React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" })
+                  )
+                )
+              ),
+
+              React.createElement("div", { className: "flex flex-wrap gap-1.5 mb-4" },
+                SUGGESTIONS.map((s, i) =>
+                  React.createElement("button", {
+                    key: i,
+                    onClick: () => { setQuery(s); handleVerify(s); },
+                    className: "text-[10px] font-bold text-gray-500 bg-[#f4f7f9] hover:bg-[#00BCC9] hover:text-white px-3 py-1.5 rounded-full transition-all border border-transparent shadow-sm"
+                  }, s)
+                )
+              ),
+
+              React.createElement("button", {
+                onClick: () => handleVerify(query),
+                disabled: !query.trim() || loading,
+                className: "w-full bg-mmx-gradient text-white font-black uppercase py-3.5 rounded-xl shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 text-xs flex items-center justify-center gap-2"
+              },
+                React.createElement("span", null, "Analizar evidencia"),
+                React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-3.5 w-3.5", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "4" },
+                  React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "m8.25 4.5 7.5 7.5-7.5 7.5" })
+                )
+              )
+            ),
+
+            results.length > 0 && React.createElement("div", { className: "mb-4 space-y-3" },
+              React.createElement("div", { className: "relative" },
+                React.createElement("input", {
+                  type: "text",
+                  value: historySearch,
+                  onChange: (e) => setHistorySearch(e.target.value),
+                  placeholder: "Busca en el historial...",
+                  className: "w-full bg-white/70 border-none rounded-lg py-2.5 px-9 text-[11px] font-semibold text-[#003d5b] placeholder-gray-400 focus:ring-2 focus:ring-[#00BCC9]/10 transition-all shadow-sm"
+                }),
+                React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: "h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-300", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: "3" },
+                  React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" })
+                )
+              ),
+
+              React.createElement("div", { className: "flex gap-1.5 overflow-x-auto no-scrollbar" },
+                categories.map((cat, i) =>
+                  React.createElement("button", {
+                    key: i,
+                    onClick: () => setActiveFilter(cat),
+                    className: `px-3 py-1.5 text-[10px] font-bold rounded-md border transition-all whitespace-nowrap ${
+                      activeFilter === cat
+                        ? "bg-[#003d5b] border-[#003d5b] text-white"
+                        : "bg-white border-gray-100 text-gray-400"
+                    }`
+                  }, cat)
+                )
+              )
+            ),
+
+            filteredResults.length > 0 && React.createElement("div", {
+              ref: carouselRef,
+              className: "flex gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4 pb-12"
+            },
+              filteredResults.map((result) =>
+                React.createElement("div", { key: result.id, className: "snap-center w-full min-w-full" },
                   React.createElement(ResultCard, {
-                    key: r.id,
-                    result: r,
-                    onDelete: (id) => setResults((prev) => prev.filter((x) => x.id !== id)),
-                    onRelated: verify
+                    result,
+                    onRelatedClick: (m) => { setQuery(m); handleVerify(m); },
+                    onDelete: handleDelete
                   })
-                ))
+                )
+              )
+            ),
+
+            results.length > 0 && filteredResults.length === 0 && React.createElement("div", { className: "text-center text-[11px] font-bold text-gray-400 py-8" },
+              "No hay resultados con ese filtro/búsqueda."
+            )
           ),
 
-          results.length > 0 && React.createElement("div", {
-            className: "fixed bottom-4 left-1/2 -translate-x-1/2 glass-panel px-6 py-2 rounded-2xl shadow-xl flex gap-6 text-[10px] font-black border border-white/50"
-          },
-            React.createElement("div", { className: "flex flex-col items-center" },
-              React.createElement("span", { className: "text-reality text-base" }, truths),
-              React.createElement("span", { className: "opacity-40" }, "Verdades")
-            ),
-            React.createElement("div", { className: "flex flex-col items-center" },
-              React.createElement("span", { className: "text-myth text-base" }, myths),
-              React.createElement("span", { className: "opacity-40" }, "Mitos")
+          results.length > 0 && React.createElement("div", { className: "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-[280px] px-4" },
+            React.createElement("div", { className: "glass-panel px-5 py-3 rounded-2xl shadow-2xl flex items-center justify-between text-[10px] font-black text-[#003d5b]" },
+              React.createElement("div", { className: "flex flex-col items-center" },
+                React.createElement("span", { className: "text-reality text-base leading-none mb-0.5" }, results.filter(r => r.isTrue).length),
+                React.createElement("span", { className: "opacity-60 text-[8px]" }, "Verdades")
+              ),
+              React.createElement("div", { className: "w-px h-5 bg-gray-200" }),
+              React.createElement("div", { className: "flex flex-col items-center" },
+                React.createElement("span", { className: "text-myth text-base leading-none mb-0.5" }, results.filter(r => !r.isTrue).length),
+                React.createElement("span", { className: "opacity-60 text-[8px]" }, "Mitos")
+              ),
+              React.createElement("div", { className: "w-px h-5 bg-gray-200" }),
+              React.createElement("div", { className: "flex flex-col items-center" },
+                React.createElement("span", { className: "text-[#0088A3] text-base leading-none mb-0.5" }, results.length),
+                React.createElement("span", { className: "opacity-60 text-[8px]" }, "Total")
+              )
             )
           )
         )
