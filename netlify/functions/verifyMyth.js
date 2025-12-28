@@ -14,16 +14,16 @@ const corsHeaders = {
 
 const SYSTEM_INSTRUCTION = `
 Eres Mito-Bot MMX, un verificador científico directo e informal de España.
-Tu misión: desmentir MITOS (carmín) o confirmar REALIDADES (esmeralda) sobre fitness, nutrición y salud.
+Tu misión: desmentir MITOS o confirmar REALIDADES sobre fitness, nutrición y salud.
 
-Reglas:
+Reglas duras:
 - Devuelve SOLO JSON válido (sin markdown, sin texto extra).
 - No uses la palabra "Bulazo". Usa "Mito".
 - explanation_simple: 2 frases claras, sin jerga.
-- explanation_expert: 3 frases más técnicas, pero sin ponerse académico.
+- explanation_expert: 3 frases más técnicas, sin ponerse académico.
 - evidenceLevel: "Baja" | "Moderada" | "Alta".
-- sources: 2 a 6 strings cortas (p. ej. "ISSN Position Stand 2022", "NEJM 2019", "ESC 2023").
-- category: 1-3 palabras (p. ej. "Suplementos", "Entrenamiento", "Nutrición", "Sueño", "Cardiometabólico").
+- sources: 2 a 6 strings cortas (p. ej. "ISSN Position Stand 2022", "NEJM 2019", "JAMA 2020").
+- category: 1-3 palabras.
 - relatedMyths: 2 a 5 sugerencias, estilo “mito consultable”.
 `.trim();
 
@@ -67,16 +67,16 @@ function safeArr(v) {
     .filter(Boolean);
 }
 
-function coerceResult(x) {
+function coerceResult(x, fallbackMyth) {
   const evidence = ["Baja", "Moderada", "Alta"].includes(safeStr(x?.evidenceLevel))
     ? safeStr(x.evidenceLevel)
     : "Baja";
 
   return {
-    myth: safeStr(x?.myth) || "—",
+    myth: safeStr(x?.myth) || fallbackMyth || "—",
     isTrue: !!x?.isTrue,
-    explanation_simple: safeStr(x?.explanation_simple) || "No he podido generar una explicación simple.",
-    explanation_expert: safeStr(x?.explanation_expert) || "No he podido generar una explicación experta.",
+    explanation_simple: safeStr(x?.explanation_simple) || "",
+    explanation_expert: safeStr(x?.explanation_expert) || "",
     evidenceLevel: evidence,
     sources: safeArr(x?.sources).slice(0, 8),
     category: safeStr(x?.category) || "General",
@@ -92,7 +92,6 @@ function extractModelText(geminiJson) {
 
 exports.handler = async (event) => {
   try {
-    // CORS preflight
     if (event.httpMethod === "OPTIONS") {
       return json(200, { ok: true });
     }
@@ -115,18 +114,17 @@ exports.handler = async (event) => {
     const text = safeStr(body?.text);
     if (!text) return json(400, { error: "Texto vacío." });
 
-    // Límite defensivo (coste + robustez)
-    // Ajusta si quieres, pero no lo quites.
-    if (text.length > 240) return json(400, { error: "Texto demasiado largo (máx 240 caracteres)." });
+    // Defensivo: evita inputs muy largos (coste + estabilidad)
+    const clipped = text.slice(0, 400);
 
-    const prompt = `Oye, analízame esto: "${text}"`;
+    const prompt = `Oye, analízame esto: "${clipped}"`;
 
     const reqBody = {
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 450, // ✅ lo que me pediste
+        maxOutputTokens: 450,
         responseMimeType: "application/json",
         responseJsonSchema: RESPONSE_JSON_SCHEMA,
       },
@@ -159,7 +157,7 @@ exports.handler = async (event) => {
     try {
       parsed = JSON.parse(textOut);
     } catch {
-      // fallback por si viniera con ruido
+      // fallback si viniera con ruido (muy raro con schema, pero mejor robusto)
       const start = textOut.indexOf("{");
       const end = textOut.lastIndexOf("}");
       if (start >= 0 && end > start) {
@@ -173,8 +171,7 @@ exports.handler = async (event) => {
       }
     }
 
-    // Devuelve exactamente el shape que espera tu frontend (sin wrapper)
-    return json(200, coerceResult(parsed));
+    return json(200, coerceResult(parsed, clipped));
   } catch (e) {
     return json(500, { error: "Error interno en Netlify Function.", details: String(e?.message || e) });
   }
